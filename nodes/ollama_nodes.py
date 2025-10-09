@@ -184,20 +184,28 @@ class OllamaConverse:
             result = response.json()
             
             # Extract the response text from RunPod response structure
+            if "output" in result and isinstance(result["output"], list) and len(result["output"]) > 0:
+                output_item = result["output"][0]
+                if "choices" in output_item and isinstance(output_item["choices"], list) and len(output_item["choices"]) > 0:
+                    choice = output_item["choices"][0]
+                    if "text" in choice:
+                        return (choice["text"], output_meta)
+            
+            # Fallback for old response format
             if "output" in result:
                 if isinstance(result["output"], dict) and "response" in result["output"]:
                     return (result["output"]["response"], output_meta)
                 elif isinstance(result["output"], str):
                     return (result["output"], output_meta)
             
-            # Fallback: return the full response as JSON string
+            # Final fallback: return the full response as JSON string
             return (json.dumps(result, indent=2), output_meta)
             
         except requests.exceptions.RequestException as e:
-            return (f"Request error: {str(e)}", output_meta)
+            raise RuntimeError(f"Request error: {str(e)}")
         except json.JSONDecodeError as e:
-            return (f"JSON decode error: {str(e)}", output_meta)
+            raise RuntimeError(f"JSON decode error: {str(e)}")
         except Exception as e:
-            return (f"Unexpected error: {str(e)}", output_meta)
+            raise RuntimeError(f"Unexpected error: {str(e)}")
 
 
