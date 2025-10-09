@@ -3,6 +3,7 @@ import json
 import base64
 import io
 import torch
+import random
 from PIL import Image
 from typing import Tuple, Optional
 
@@ -40,6 +41,8 @@ class OllamaConfiguration:
             "required": {
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
+                "control_after_generate": (["fixed", "randomize"], {"default": "fixed"}),
             }
         }
     
@@ -47,10 +50,12 @@ class OllamaConfiguration:
     FUNCTION = "create_config"
     CATEGORY = "ComfyBros/LLM"
     
-    def create_config(self, max_tokens: int, temperature: float) -> Tuple[dict]:
+    def create_config(self, max_tokens: int, temperature: float, seed: int, control_after_generate: str) -> Tuple[dict]:
         config = {
             "max_tokens": max_tokens,
-            "temperature": temperature
+            "temperature": temperature,
+            "seed": seed,
+            "control_after_generate": control_after_generate
         }
         return (config,)
 
@@ -117,6 +122,14 @@ class OllamaConverse:
         endpoint_url = actual_connection["endpoint_url"]
         headers = actual_connection["headers"]
         
+        # Handle seed and control_after_generate logic
+        current_seed = actual_config.get("seed", -1)
+        control_after_generate = actual_config.get("control_after_generate", "fixed")
+        
+        # If control_after_generate is "randomize", generate a random seed
+        if control_after_generate == "randomize":
+            current_seed = random.randint(0, 2147483647)
+        
         # Prepare the input payload
         input_data = {
             "prompt": prompt,
@@ -125,6 +138,10 @@ class OllamaConverse:
                 "temperature": actual_config["temperature"]
             }
         }
+        
+        # Add seed to options if it's not -1 (default)
+        if current_seed != -1:
+            input_data["options"]["seed"] = current_seed
         
         # Add system prompt if provided
         if system_prompt.strip():
@@ -145,10 +162,14 @@ class OllamaConverse:
         
         payload = {"input": input_data}
         
+        # Create updated config with the current seed for passing to next node
+        updated_config = actual_config.copy()
+        updated_config["current_seed"] = current_seed
+        
         # Create meta output to pass connection and config to next node
         output_meta = {
             "connection": actual_connection,
-            "config": actual_config
+            "config": updated_config
         }
         
         try:
