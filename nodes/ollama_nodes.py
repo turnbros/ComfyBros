@@ -43,6 +43,8 @@ class OllamaConfiguration:
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
                 "control_after_generate": (["fixed", "randomize"], {"default": "fixed"}),
+                # Defaults to 240 since that seems to be how long a coldstart takes
+                "read_timeout": ("INT", {"default": 240, "min": 1, "max": 600}),
             }
         }
     
@@ -50,12 +52,13 @@ class OllamaConfiguration:
     FUNCTION = "create_config"
     CATEGORY = "ComfyBros/LLM"
     
-    def create_config(self, max_tokens: int, temperature: float, seed: int, control_after_generate: str) -> Tuple[dict]:
+    def create_config(self, max_tokens: int, temperature: float, seed: int, control_after_generate: str, read_timeout: int) -> Tuple[dict]:
         config = {
             "max_tokens": max_tokens,
             "temperature": temperature,
             "seed": seed,
-            "control_after_generate": control_after_generate
+            "control_after_generate": control_after_generate,
+            "read_timeout": read_timeout
         }
         return (config,)
 
@@ -173,7 +176,9 @@ class OllamaConverse:
         }
         
         try:
-            response = requests.post(endpoint_url, headers=headers, json=payload, timeout=60)
+            # Defaults to 240 since that seems to be how long a coldstart takes
+            timeout = actual_config.get("read_timeout", 240)
+            response = requests.post(endpoint_url, headers=headers, json=payload, timeout=timeout)
             response.raise_for_status()
             
             result = response.json()
