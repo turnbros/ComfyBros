@@ -171,14 +171,17 @@ class SDXLLORAPrompter:
                     crop_height = crop_height if crop_height and crop_height > 0 else 0
                     
                     try:
+                        print(f"SDXLLORAPrompter: Attempting SDXL encoding with clip_w={opt_clip_width}, clip_h={opt_clip_height}, target_w={target_width}, target_h={target_height}, crop_w={crop_width}, crop_h={crop_height}")
                         conditioning = CLIPTextEncodeSDXL().encode(
                             opt_clip, opt_clip_width, opt_clip_height,
                             crop_width, crop_height, target_width, target_height,
                             prompt_g, prompt_l
                         )[0]
-                    except Exception:
+                        print("SDXLLORAPrompter: SDXL encoding successful")
+                    except Exception as e:
                         do_sdxl_encode = False
-                        print("SDXLLORAPrompter: Exception with CLIPTextEncodeSDXL, falling back to standard encoding")
+                        print(f"SDXLLORAPrompter: Exception with CLIPTextEncodeSDXL: {str(e)}")
+                        print("SDXLLORAPrompter: Falling back to standard encoding")
                 
                 if not do_sdxl_encode:
                     combined_prompt = f"{prompt_g if prompt_g else ''}\n{prompt_l if prompt_l else ''}"
@@ -201,22 +204,61 @@ class SDXLLORAPrompter:
             loras = loras_g + loras_l
             print(f"SDXLLORAPrompter: Disabling all found loras ({len(loras)}) and stripping LORA tags for TEXT output")
         elif opt_model is not None and opt_clip is not None:
-            prompt_g, loras_g, _, _ = self.get_and_strip_loras(prompt_g)
-            prompt_l, loras_l, _, _ = self.get_and_strip_loras(prompt_l)
+            print("SDXLLORAPrompter: DEBUG - Starting LORA processing with model and clip provided")
+            prompt_g, loras_g, _, unfound_g = self.get_and_strip_loras(prompt_g)
+            prompt_l, loras_l, _, unfound_l = self.get_and_strip_loras(prompt_l)
             loras = loras_g + loras_l
+            unfound_loras = unfound_g + unfound_l
+            print(f"SDXLLORAPrompter: DEBUG - Found {len(loras)} LORAs to load, {len(unfound_loras)} unfound")
+            
+            # Report any unfound LORAs
+            if unfound_loras:
+                unfound_names = [lora['lora'] for lora in unfound_loras]
+                print(f"SDXLLORAPrompter: WARNING - {len(unfound_loras)} LORA(s) not found: {unfound_names}")
+                print("SDXLLORAPrompter: These LORAs will be ignored but prompt processing will continue")
             
             if len(loras) > 0:
                 try:
                     from nodes import LoraLoader
+                    lora_loader = LoraLoader()
+                    print(f"SDXLLORAPrompter: Processing {len(loras)} LORAs...")
+                    
                     for lora in loras:
-                        opt_model, opt_clip = LoraLoader().load_lora(
-                            opt_model, opt_clip, lora['lora'],
-                            lora['strength'], lora['strength']
-                        )
-                        print(f"SDXLLORAPrompter: Loaded '{lora['lora']}' from prompt")
-                    print(f"SDXLLORAPrompter: {len(loras)} LORAs processed; stripping tags for TEXT output")
-                except ImportError:
-                    print("SDXLLORAPrompter: Could not import LoraLoader")
+                        print(f"SDXLLORAPrompter: Loading LORA '{lora['lora']}' with strength {lora['strength']}")
+                        try:
+                            # Check the current model state before loading
+                            print(f"SDXLLORAPrompter: About to load LORA. Model type: {type(opt_model)}, CLIP type: {type(opt_clip)}")
+                            
+                            result = lora_loader.load_lora(
+                                opt_model, opt_clip, lora['lora'],
+                                lora['strength'], lora['strength']
+                            )
+                            
+                            print(f"SDXLLORAPrompter: load_lora returned: {type(result)}, length: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+                            
+                            if result and len(result) >= 2:
+                                new_model, new_clip = result[0], result[1]
+                                print(f"SDXLLORAPrompter: New model type: {type(new_model)}, New CLIP type: {type(new_clip)}")
+                                
+                                # Validate the returned models aren't corrupted
+                                if new_model is not None and new_clip is not None:
+                                    opt_model, opt_clip = new_model, new_clip
+                                    print(f"SDXLLORAPrompter: Successfully loaded '{lora['lora']}'")
+                                else:
+                                    print(f"SDXLLORAPrompter: Warning - load_lora returned None values for '{lora['lora']}'")
+                            else:
+                                print(f"SDXLLORAPrompter: Warning - unexpected return from load_lora for '{lora['lora']}': {result}")
+                        except Exception as e:
+                            print(f"SDXLLORAPrompter: Error loading LORA '{lora['lora']}': {str(e)}")
+                            import traceback
+                            print(f"SDXLLORAPrompter: Full traceback: {traceback.format_exc()}")
+                            # Continue with other LORAs even if one fails
+                            
+                    print(f"SDXLLORAPrompter: Finished processing LORAs, stripping tags for TEXT output")
+                except ImportError as e:
+                    print(f"SDXLLORAPrompter: Could not import LoraLoader: {str(e)}")
+                except Exception as e:
+                    print(f"SDXLLORAPrompter: Unexpected error during LORA processing: {str(e)}")
         elif '<lora:' in prompt_g or '<lora:' in prompt_l:
             _, loras_g, _, _ = self.get_and_strip_loras(prompt_g, True)
             _, loras_l, _, _ = self.get_and_strip_loras(prompt_l, True)
