@@ -46,21 +46,208 @@ app.registerExtension({
             id: "ComfyBros.test_runpod_connection",
             label: "Test RunPod Connection",
             function: async () => {
-                await testRunPodConnection();
+                // Load settings and test connection
+                await loadRunPodSettings();
+                const apiKey = comfyBrosSettings.runpod.api_key;
+                
+                if (!apiKey) {
+                    alert("Please set your RunPod API key in settings first (Settings → ComfyBros)");
+                    return;
+                }
+                
+                try {
+                    const response = await api.fetchApi("/comfybros/test_connection", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert("✅ RunPod connection successful!");
+                    } else {
+                        alert(`❌ RunPod connection failed: ${result.message}`);
+                    }
+                } catch (error) {
+                    alert(`❌ Connection test failed: ${error.message}`);
+                }
             }
         },
         {
             id: "ComfyBros.add_runpod_instance",
             label: "Add RunPod Instance",
             function: async () => {
-                await showAddInstanceDialog();
+                // Load current settings
+                await loadRunPodSettings();
+                
+                const name = prompt("Instance name:");
+                if (!name) return;
+                
+                const endpointId = prompt("RunPod endpoint ID:");
+                if (!endpointId) return;
+                
+                const description = prompt("Description (optional):") || "";
+                
+                // Check for duplicate names
+                if (comfyBrosSettings.runpod.instances.some(inst => inst.name === name)) {
+                    alert("❌ An instance with this name already exists");
+                    return;
+                }
+                
+                const newInstance = {
+                    name: name,
+                    endpoint_id: endpointId,
+                    description: description,
+                    enabled: true,
+                    max_workers: 1,
+                    timeout_seconds: 300
+                };
+                
+                comfyBrosSettings.runpod.instances.push(newInstance);
+                
+                // Set as default if it's the first instance
+                if (comfyBrosSettings.runpod.instances.length === 1) {
+                    comfyBrosSettings.runpod.default_instance = name;
+                }
+                
+                // Save settings
+                try {
+                    const response = await api.fetchApi("/comfybros/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(comfyBrosSettings)
+                    });
+                    
+                    if (response.ok) {
+                        alert(`✅ Instance '${name}' added successfully!`);
+                    } else {
+                        alert("❌ Failed to save instance");
+                    }
+                } catch (error) {
+                    alert(`❌ Error saving instance: ${error.message}`);
+                }
             }
         },
         {
             id: "ComfyBros.manage_runpod_instances",
             label: "Manage RunPod Instances",
             function: async () => {
-                await showInstanceManagerDialog();
+                // Load current settings
+                await loadRunPodSettings();
+                
+                if (comfyBrosSettings.runpod.instances.length === 0) {
+                    alert("No instances configured. Use 'Add RunPod Instance' to create one.");
+                    return;
+                }
+                
+                const instanceNames = comfyBrosSettings.runpod.instances.map(inst => inst.name);
+                const selectedName = prompt(`Select instance to manage:\n${instanceNames.join(", ")}\n\nEnter instance name:`);
+                
+                if (!selectedName || !instanceNames.includes(selectedName)) {
+                    return;
+                }
+                
+                const action = prompt(`Manage instance '${selectedName}':\n1. Delete\n2. Toggle Enable/Disable\n3. Set as Default\n4. Validate\n\nEnter action number:`);
+                
+                const instanceIndex = comfyBrosSettings.runpod.instances.findIndex(inst => inst.name === selectedName);
+                
+                switch (action) {
+                    case "1": // Delete
+                        if (confirm(`Are you sure you want to delete instance '${selectedName}'?`)) {
+                            comfyBrosSettings.runpod.instances.splice(instanceIndex, 1);
+                            
+                            // Update default if needed
+                            if (comfyBrosSettings.runpod.default_instance === selectedName) {
+                                comfyBrosSettings.runpod.default_instance = comfyBrosSettings.runpod.instances.length > 0 
+                                    ? comfyBrosSettings.runpod.instances[0].name 
+                                    : "";
+                            }
+                            
+                            // Save settings
+                            try {
+                                const response = await api.fetchApi("/comfybros/settings", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(comfyBrosSettings)
+                                });
+                                
+                                if (response.ok) {
+                                    alert(`✅ Instance '${selectedName}' deleted`);
+                                } else {
+                                    alert("❌ Failed to save changes");
+                                }
+                            } catch (error) {
+                                alert(`❌ Error saving changes: ${error.message}`);
+                            }
+                        }
+                        break;
+                        
+                    case "2": // Toggle enable/disable
+                        comfyBrosSettings.runpod.instances[instanceIndex].enabled = !comfyBrosSettings.runpod.instances[instanceIndex].enabled;
+                        
+                        // Save settings
+                        try {
+                            const response = await api.fetchApi("/comfybros/settings", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(comfyBrosSettings)
+                            });
+                            
+                            if (response.ok) {
+                                alert(`✅ Instance '${selectedName}' ${comfyBrosSettings.runpod.instances[instanceIndex].enabled ? 'enabled' : 'disabled'}`);
+                            } else {
+                                alert("❌ Failed to save changes");
+                            }
+                        } catch (error) {
+                            alert(`❌ Error saving changes: ${error.message}`);
+                        }
+                        break;
+                        
+                    case "3": // Set as default
+                        comfyBrosSettings.runpod.default_instance = selectedName;
+                        
+                        // Save settings
+                        try {
+                            const response = await api.fetchApi("/comfybros/settings", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(comfyBrosSettings)
+                            });
+                            
+                            if (response.ok) {
+                                alert(`✅ Instance '${selectedName}' set as default`);
+                            } else {
+                                alert("❌ Failed to save changes");
+                            }
+                        } catch (error) {
+                            alert(`❌ Error saving changes: ${error.message}`);
+                        }
+                        break;
+                        
+                    case "4": // Validate
+                        try {
+                            const response = await api.fetchApi("/comfybros/validate_instance", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ instance_name: selectedName })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                alert(`✅ Instance '${selectedName}' is healthy`);
+                            } else {
+                                alert(`❌ Instance '${selectedName}' validation failed: ${result.message}`);
+                            }
+                        } catch (error) {
+                            alert(`❌ Validation failed: ${error.message}`);
+                        }
+                        break;
+                        
+                    default:
+                        alert("Invalid action");
+                }
             }
         }
     ],
