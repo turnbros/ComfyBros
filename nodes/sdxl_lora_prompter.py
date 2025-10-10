@@ -171,14 +171,17 @@ class SDXLLORAPrompter:
                     crop_height = crop_height if crop_height and crop_height > 0 else 0
                     
                     try:
+                        print(f"SDXLLORAPrompter: Attempting SDXL encoding with clip_w={opt_clip_width}, clip_h={opt_clip_height}, target_w={target_width}, target_h={target_height}, crop_w={crop_width}, crop_h={crop_height}")
                         conditioning = CLIPTextEncodeSDXL().encode(
                             opt_clip, opt_clip_width, opt_clip_height,
                             crop_width, crop_height, target_width, target_height,
                             prompt_g, prompt_l
                         )[0]
-                    except Exception:
+                        print("SDXLLORAPrompter: SDXL encoding successful")
+                    except Exception as e:
                         do_sdxl_encode = False
-                        print("SDXLLORAPrompter: Exception with CLIPTextEncodeSDXL, falling back to standard encoding")
+                        print(f"SDXLLORAPrompter: Exception with CLIPTextEncodeSDXL: {str(e)}")
+                        print("SDXLLORAPrompter: Falling back to standard encoding")
                 
                 if not do_sdxl_encode:
                     combined_prompt = f"{prompt_g if prompt_g else ''}\n{prompt_l if prompt_l else ''}"
@@ -201,9 +204,16 @@ class SDXLLORAPrompter:
             loras = loras_g + loras_l
             print(f"SDXLLORAPrompter: Disabling all found loras ({len(loras)}) and stripping LORA tags for TEXT output")
         elif opt_model is not None and opt_clip is not None:
-            prompt_g, loras_g, _, _ = self.get_and_strip_loras(prompt_g)
-            prompt_l, loras_l, _, _ = self.get_and_strip_loras(prompt_l)
+            prompt_g, loras_g, _, unfound_g = self.get_and_strip_loras(prompt_g)
+            prompt_l, loras_l, _, unfound_l = self.get_and_strip_loras(prompt_l)
             loras = loras_g + loras_l
+            unfound_loras = unfound_g + unfound_l
+            
+            # Report any unfound LORAs
+            if unfound_loras:
+                unfound_names = [lora['lora'] for lora in unfound_loras]
+                print(f"SDXLLORAPrompter: WARNING - {len(unfound_loras)} LORA(s) not found: {unfound_names}")
+                print("SDXLLORAPrompter: These LORAs will be ignored but prompt processing will continue")
             
             if len(loras) > 0:
                 try:
