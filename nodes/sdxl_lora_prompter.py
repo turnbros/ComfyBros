@@ -208,15 +208,30 @@ class SDXLLORAPrompter:
             if len(loras) > 0:
                 try:
                     from nodes import LoraLoader
+                    lora_loader = LoraLoader()
+                    print(f"SDXLLORAPrompter: Processing {len(loras)} LORAs...")
+                    
                     for lora in loras:
-                        opt_model, opt_clip = LoraLoader().load_lora(
-                            opt_model, opt_clip, lora['lora'],
-                            lora['strength'], lora['strength']
-                        )
-                        print(f"SDXLLORAPrompter: Loaded '{lora['lora']}' from prompt")
-                    print(f"SDXLLORAPrompter: {len(loras)} LORAs processed; stripping tags for TEXT output")
-                except ImportError:
-                    print("SDXLLORAPrompter: Could not import LoraLoader")
+                        print(f"SDXLLORAPrompter: Loading LORA '{lora['lora']}' with strength {lora['strength']}")
+                        try:
+                            result = lora_loader.load_lora(
+                                opt_model, opt_clip, lora['lora'],
+                                lora['strength'], lora['strength']
+                            )
+                            if result and len(result) >= 2:
+                                opt_model, opt_clip = result[0], result[1]
+                                print(f"SDXLLORAPrompter: Successfully loaded '{lora['lora']}'")
+                            else:
+                                print(f"SDXLLORAPrompter: Warning - unexpected return from load_lora for '{lora['lora']}'")
+                        except Exception as e:
+                            print(f"SDXLLORAPrompter: Error loading LORA '{lora['lora']}': {str(e)}")
+                            # Continue with other LORAs even if one fails
+                            
+                    print(f"SDXLLORAPrompter: Finished processing LORAs, stripping tags for TEXT output")
+                except ImportError as e:
+                    print(f"SDXLLORAPrompter: Could not import LoraLoader: {str(e)}")
+                except Exception as e:
+                    print(f"SDXLLORAPrompter: Unexpected error during LORA processing: {str(e)}")
         elif '<lora:' in prompt_g or '<lora:' in prompt_l:
             _, loras_g, _, _ = self.get_and_strip_loras(prompt_g, True)
             _, loras_l, _, _ = self.get_and_strip_loras(prompt_l, True)
