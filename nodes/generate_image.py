@@ -4,7 +4,6 @@ import base64
 import io
 import torch
 from PIL import Image
-import numpy as np
 from typing import Tuple
 
 
@@ -48,11 +47,16 @@ class GenerateImage:
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
         
-        # Convert PIL to numpy array
-        image_np = np.array(pil_image).astype(np.float32) / 255.0
+        # Convert PIL to list of pixel values, then to tensor
+        width, height = pil_image.size
+        pixel_data = list(pil_image.getdata())
         
-        # Convert to torch tensor [H, W, C] -> [1, H, W, C] (batch dimension)
-        image_tensor = torch.from_numpy(image_np).unsqueeze(0)
+        # Convert to torch tensor and reshape
+        image_tensor = torch.tensor(pixel_data, dtype=torch.float32)
+        image_tensor = image_tensor.view(height, width, 3) / 255.0
+        
+        # Add batch dimension [H, W, C] -> [1, H, W, C]
+        image_tensor = image_tensor.unsqueeze(0)
         
         return image_tensor
 
