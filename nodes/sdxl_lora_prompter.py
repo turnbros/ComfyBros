@@ -226,17 +226,32 @@ class SDXLLORAPrompter:
                     for lora in loras:
                         print(f"SDXLLORAPrompter: Loading LORA '{lora['lora']}' with strength {lora['strength']}")
                         try:
+                            # Check the current model state before loading
+                            print(f"SDXLLORAPrompter: About to load LORA. Model type: {type(opt_model)}, CLIP type: {type(opt_clip)}")
+                            
                             result = lora_loader.load_lora(
                                 opt_model, opt_clip, lora['lora'],
                                 lora['strength'], lora['strength']
                             )
+                            
+                            print(f"SDXLLORAPrompter: load_lora returned: {type(result)}, length: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+                            
                             if result and len(result) >= 2:
-                                opt_model, opt_clip = result[0], result[1]
-                                print(f"SDXLLORAPrompter: Successfully loaded '{lora['lora']}'")
+                                new_model, new_clip = result[0], result[1]
+                                print(f"SDXLLORAPrompter: New model type: {type(new_model)}, New CLIP type: {type(new_clip)}")
+                                
+                                # Validate the returned models aren't corrupted
+                                if new_model is not None and new_clip is not None:
+                                    opt_model, opt_clip = new_model, new_clip
+                                    print(f"SDXLLORAPrompter: Successfully loaded '{lora['lora']}'")
+                                else:
+                                    print(f"SDXLLORAPrompter: Warning - load_lora returned None values for '{lora['lora']}'")
                             else:
-                                print(f"SDXLLORAPrompter: Warning - unexpected return from load_lora for '{lora['lora']}'")
+                                print(f"SDXLLORAPrompter: Warning - unexpected return from load_lora for '{lora['lora']}': {result}")
                         except Exception as e:
                             print(f"SDXLLORAPrompter: Error loading LORA '{lora['lora']}': {str(e)}")
+                            import traceback
+                            print(f"SDXLLORAPrompter: Full traceback: {traceback.format_exc()}")
                             # Continue with other LORAs even if one fails
                             
                     print(f"SDXLLORAPrompter: Finished processing LORAs, stripping tags for TEXT output")
