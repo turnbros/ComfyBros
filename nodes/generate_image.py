@@ -1,5 +1,10 @@
 import requests
 import json
+import base64
+import io
+import torch
+from PIL import Image
+import numpy as np
 from typing import Tuple
 
 
@@ -26,15 +31,35 @@ class GenerateImage:
             }
         }
     
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("response",)
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "metadata")
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Image Generation"
     
+    def base64_to_tensor(self, base64_string: str) -> torch.Tensor:
+        """Convert base64 string to torch tensor for ComfyUI"""
+        # Decode base64 to bytes
+        image_bytes = base64.b64decode(base64_string)
+        
+        # Create PIL Image from bytes
+        pil_image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convert to RGB if needed
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+        
+        # Convert PIL to numpy array
+        image_np = np.array(pil_image).astype(np.float32) / 255.0
+        
+        # Convert to torch tensor [H, W, C] -> [1, H, W, C] (batch dimension)
+        image_tensor = torch.from_numpy(image_np).unsqueeze(0)
+        
+        return image_tensor
+
     def generate(self, endpoint: str, auth_token: str, positive_prompt: str, 
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str, workflow_name: str) -> Tuple[str]:
+                scheduler: str, workflow_name: str) -> Tuple[torch.Tensor, str]:
         
         # Prepare headers
         headers = {
@@ -68,10 +93,34 @@ class GenerateImage:
             
             result = response.json()
             
-            # Return the response as JSON string for now
-            # In a real implementation, you might want to process the response
-            # to extract image URLs or other specific data
-            return (json.dumps(result, indent=2),)
+            # Parse the response to extract image data
+            if ("output" in result and 
+                "result" in result["output"] and 
+                "images" in result["output"]["result"] and 
+                len(result["output"]["result"]["images"]) > 0):
+                
+                # Get the first image
+                first_image = result["output"]["result"]["images"][0]
+                
+                if "data" in first_image:
+                    # Convert base64 image to tensor
+                    image_tensor = self.base64_to_tensor(first_image["data"])
+                    
+                    # Create metadata string with generation parameters
+                    metadata = {
+                        "filename": first_image.get("filename", "generated_image.png"),
+                        "format": first_image.get("format", "PNG"),
+                        "parameters": result["output"]["result"].get("parameters", {}),
+                        "execution_time": result.get("executionTime", 0),
+                        "delay_time": result.get("delayTime", 0),
+                        "status": result["output"]["result"].get("status", "unknown")
+                    }
+                    
+                    return (image_tensor, json.dumps(metadata, indent=2))
+                else:
+                    raise RuntimeError("No image data found in response")
+            else:
+                raise RuntimeError(f"Unexpected response structure: {json.dumps(result, indent=2)}")
             
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Request error: {str(e)}")
