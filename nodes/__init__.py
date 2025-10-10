@@ -1,6 +1,7 @@
 from .ollama_nodes import *
 from .sdxl_lora_prompter import *
 from .generate_image import *
+from .lora_discovery import *
 
 NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConnection": OllamaConnection,
@@ -8,6 +9,7 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConverse": OllamaConverse,
     "ComfyBros_SDXLLORAPrompter": SDXLLORAPrompter,
     "ComfyBros_GenerateImage": GenerateImage,
+    "ComfyBros_LoraDiscovery": LoraDiscovery,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -16,4 +18,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_OllamaConverse": "Ollama Converse",
     "ComfyBros_SDXLLORAPrompter": "SDXL LORA Prompter",
     "ComfyBros_GenerateImage": "Generate Image",
+    "ComfyBros_LoraDiscovery": "LORA Discovery",
 }
