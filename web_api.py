@@ -18,10 +18,10 @@ class ComfyBrosWebAPI:
     
     def __init__(self):
         self.routes = [
-            ("GET", "/comfybros/settings", self.get_settings),
-            ("POST", "/comfybros/settings", self.save_settings),
-            ("POST", "/comfybros/test_connection", self.test_connection),
-            ("POST", "/comfybros/validate_instance", self.validate_instance),
+            ("GET", "/api/comfybros/settings", self.get_settings),
+            ("POST", "/api/comfybros/settings", self.save_settings),
+            ("POST", "/api/comfybros/test_connection", self.test_connection),
+            ("POST", "/api/comfybros/validate_instance", self.validate_instance),
         ]
     
     async def get_settings(self, request) -> web.Response:
