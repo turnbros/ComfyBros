@@ -204,10 +204,12 @@ class SDXLLORAPrompter:
             loras = loras_g + loras_l
             print(f"SDXLLORAPrompter: Disabling all found loras ({len(loras)}) and stripping LORA tags for TEXT output")
         elif opt_model is not None and opt_clip is not None:
+            print("SDXLLORAPrompter: DEBUG - Starting LORA processing with model and clip provided")
             prompt_g, loras_g, _, unfound_g = self.get_and_strip_loras(prompt_g)
             prompt_l, loras_l, _, unfound_l = self.get_and_strip_loras(prompt_l)
             loras = loras_g + loras_l
             unfound_loras = unfound_g + unfound_l
+            print(f"SDXLLORAPrompter: DEBUG - Found {len(loras)} LORAs to load, {len(unfound_loras)} unfound")
             
             # Report any unfound LORAs
             if unfound_loras:
