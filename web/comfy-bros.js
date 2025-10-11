@@ -21,6 +21,9 @@ app.registerExtension({
       title: "Serverless Config",
       type: "custom",
       render: (el) => {
+        // Clear the container first to prevent duplicates
+        el.innerHTML = "";
+        
         // Load current state or start with an empty array
         let instances = app.extensionManager.setting.get("serverlessConfig.instances") || [];
 
