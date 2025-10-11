@@ -5,6 +5,7 @@ from .generate_video import *
 from .lora_discovery import *
 from .endpoint_config import *
 from .text_storage import *
+from .json_nodes import *
 
 NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConnection": OllamaConnection,
@@ -18,6 +19,8 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_TextStorage": TextStorage,
     "ComfyBros_TextTemplate": TextTemplate,
     "ComfyBros_TextConcatenate": TextConcatenate,
+    "ComfyBros_JsonParse": JsonParseNode,
+    "ComfyBros_DictGet": DictGetNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -32,4 +35,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_TextStorage": "Text Storage",
     "ComfyBros_TextTemplate": "Text Template",
     "ComfyBros_TextConcatenate": "Text Concatenate",
+    "ComfyBros_JsonParse": "JSON Parse",
+    "ComfyBros_DictGet": "Dict Get",
 }
