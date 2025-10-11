@@ -262,17 +262,17 @@ class OllamaConverse:
             
             # Parse response based on format (RunPod wrapper vs direct)
             if use_runpod_wrapper:
-                # RunPod wrapped response
-                if "output" in result:
-                    chat_response = result["output"]
+                # RunPod wrapped response - output is an array
+                if "output" in result and isinstance(result["output"], list) and len(result["output"]) > 0:
+                    chat_response = result["output"][0]  # Get first element of output array
                     if isinstance(chat_response, dict) and "choices" in chat_response:
                         choices = chat_response["choices"]
                         if isinstance(choices, list) and len(choices) > 0:
                             choice = choices[0]
                             if "message" in choice and "content" in choice["message"]:
                                 assistant_response = choice["message"]["content"].strip()
-                    elif isinstance(chat_response, str):
-                        assistant_response = chat_response.strip()
+                elif "output" in result and isinstance(result["output"], str):
+                    assistant_response = result["output"].strip()
             else:
                 # Direct OpenAI-compatible response
                 if "choices" in result and isinstance(result["choices"], list) and len(result["choices"]) > 0:
