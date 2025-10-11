@@ -270,15 +270,15 @@ class OllamaConverse:
                         if isinstance(choices, list) and len(choices) > 0:
                             choice = choices[0]
                             if "message" in choice and "content" in choice["message"]:
-                                assistant_response = choice["message"]["content"]
+                                assistant_response = choice["message"]["content"].strip()
                     elif isinstance(chat_response, str):
-                        assistant_response = chat_response
+                        assistant_response = chat_response.strip()
             else:
                 # Direct OpenAI-compatible response
                 if "choices" in result and isinstance(result["choices"], list) and len(result["choices"]) > 0:
                     choice = result["choices"][0]
                     if "message" in choice and "content" in choice["message"]:
-                        assistant_response = choice["message"]["content"]
+                        assistant_response = choice["message"]["content"].strip()
             
             # If we got a response, update the conversation context
             if assistant_response:
