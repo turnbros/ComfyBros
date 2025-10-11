@@ -5,6 +5,7 @@ import io
 import torch
 import os
 import random
+import tempfile
 from PIL import Image
 from typing import Tuple
 import folder_paths
@@ -56,7 +57,7 @@ class WAN22GenerateVideo:
             }
         }
     
-    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("video_data", "metadata")
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Video Generation"
@@ -85,6 +86,43 @@ class WAN22GenerateVideo:
         buffer.seek(0)
         
         return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    def base64_to_video_file(self, base64_string: str, filename: str = None) -> str:
+        """Convert base64 string to video file and return file path"""
+        try:
+            # Decode base64 to bytes
+            video_bytes = base64.b64decode(base64_string)
+            
+            # Create a temporary file for the video
+            if filename and filename.endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                # Use provided filename if it has a video extension
+                video_extension = os.path.splitext(filename)[1]
+            else:
+                # Default to .mp4
+                video_extension = '.mp4'
+            
+            # Create temp file in ComfyUI's output directory if possible
+            try:
+                output_dir = folder_paths.get_output_directory()
+            except:
+                output_dir = tempfile.gettempdir()
+            
+            # Create unique filename
+            temp_file = tempfile.NamedTemporaryFile(
+                delete=False, 
+                suffix=video_extension, 
+                dir=output_dir,
+                prefix='generated_video_'
+            )
+            
+            # Write video data to file
+            temp_file.write(video_bytes)
+            temp_file.close()
+            
+            return temp_file.name
+            
+        except Exception as e:
+            raise RuntimeError(f"Error converting base64 to video file: {str(e)}")
 
     def process_input_image(self, input_image, input_image_string: str = None) -> str:
         """Process input image - either torch tensor, base64 data, or file path"""
@@ -219,12 +257,17 @@ class WAN22GenerateVideo:
                 first_video = result["output"]["result"]["videos"][0]
                 
                 if "data" in first_video:
-                    # Return base64 video data
-                    video_data = first_video["data"]
+                    # Convert base64 video data to file
+                    video_base64 = first_video["data"]
+                    filename = first_video.get("filename", "generated_video.mp4")
+                    
+                    # Convert base64 to video file
+                    video_file_path = self.base64_to_video_file(video_base64, filename)
                     
                     # Create metadata string with generation parameters
                     metadata = {
-                        "filename": first_video.get("filename", "generated_video.mp4"),
+                        "filename": filename,
+                        "file_path": video_file_path,
                         "format": first_video.get("format", "MP4"),
                         "parameters": result["output"]["result"].get("parameters", {}),
                         "execution_time": result.get("executionTime", 0),
@@ -238,7 +281,7 @@ class WAN22GenerateVideo:
                         }
                     }
                     
-                    return (video_data, json.dumps(metadata, indent=2))
+                    return (video_file_path, json.dumps(metadata, indent=2))
                 else:
                     raise RuntimeError("No video data found in response")
             else:
