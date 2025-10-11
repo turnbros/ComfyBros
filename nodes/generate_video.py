@@ -410,8 +410,8 @@ class WAN22GenerateVideo:
         }
         
         try:
-            # Make the request to RunPod
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=600)
+            # Make the request to RunPod with extended timeout for video generation
+            response = requests.post(endpoint, headers=headers, json=payload, timeout=900)
             response.raise_for_status()
             
             result = response.json()
@@ -421,8 +421,17 @@ class WAN22GenerateVideo:
                 job_id = result.get("id")
                 if job_id:
                     print(f"Video generation started, job ID: {job_id}")
-                    # Poll for completion
-                    result = self.poll_for_completion(job_id, headers)
+                    
+                    # For synchronous requests (job ID starts with 'sync-'), don't poll
+                    # The job will complete within the original request timeout
+                    if job_id.startswith("sync-"):
+                        print("Synchronous job detected - waiting for completion within original request...")
+                        # The job should complete and return results within the original POST request
+                        # If we get here, it means the serverless function had an issue returning results
+                        raise RuntimeError(f"Synchronous job {job_id} failed to return results. Check serverless function logs.")
+                    else:
+                        # For asynchronous requests, poll for completion
+                        result = self.poll_for_completion(job_id, headers)
                 else:
                     raise RuntimeError("Job started but no ID returned for polling")
             
