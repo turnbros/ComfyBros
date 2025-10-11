@@ -1,6 +1,7 @@
 from .ollama_nodes import *
 from .sdxl_lora_prompter import *
 from .generate_image import *
+from .generate_video import *
 from .lora_discovery import *
 from .endpoint_config import *
 from .text_storage import *
@@ -11,6 +12,7 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConverse": OllamaConverse,
     "ComfyBros_SDXLLORAPrompter": SDXLLORAPrompter,
     "ComfyBros_GenerateImage": GenerateImage,
+    "ComfyBros_WAN22GenerateVideo": WAN22GenerateVideo,
     "ComfyBros_LoraDiscovery": LoraDiscovery,
     "ComfyBros_EndpointConfiguration": EndpointConfiguration,
     "ComfyBros_TextStorage": TextStorage,
@@ -24,6 +26,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_OllamaConverse": "Ollama Converse",
     "ComfyBros_SDXLLORAPrompter": "SDXL LORA Prompter",
     "ComfyBros_GenerateImage": "Generate Image",
+    "ComfyBros_WAN22GenerateVideo": "WAN22 Generate Video",
     "ComfyBros_LoraDiscovery": "LORA Discovery",
     "ComfyBros_EndpointConfiguration": "Endpoint Configuration",
     "ComfyBros_TextStorage": "Text Storage",
