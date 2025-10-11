@@ -34,7 +34,7 @@ class GenerateImage:
             import folder_paths
             possible_paths = [
                 os.path.join(folder_paths.base_path, "user", "default", "settings.json"),
-                os.path.join(folder_paths.base_path, "settings.json"),
+                os.path.join(folder_paths.base_path, "comfy.settings.json"),
                 os.path.join(os.path.dirname(__file__), "..", "instances.json")
             ]
             
