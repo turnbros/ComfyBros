@@ -98,14 +98,15 @@ class OllamaConverse:
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
             },
             "optional": {
+                "context": ("CONTEXT",),
                 "image": ("IMAGE",),
                 "system_prompt": ("STRING", {"multiline": True, "default": ""}),
                 "read_timeout": ("INT", {"default": 240, "min": 1, "max": 600}),
             }
         }
     
-    RETURN_TYPES = ("STRING", "OLLAMA_META")
-    RETURN_NAMES = ("response", "meta")
+    RETURN_TYPES = ("STRING", "CONTEXT", "OLLAMA_META")
+    RETURN_NAMES = ("response", "context", "meta")
     FUNCTION = "generate_response"
     CATEGORY = "ComfyBros/LLM"
     
@@ -154,8 +155,9 @@ class OllamaConverse:
         raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
 
     def generate_response(self, instance_name: str, prompt: str, max_tokens: int, 
-                         temperature: float, seed: int, image: Optional[torch.Tensor] = None, 
-                         system_prompt: str = "", read_timeout: int = 240) -> Tuple[str, dict]:
+                         temperature: float, seed: int, context: Optional[dict] = None,
+                         image: Optional[torch.Tensor] = None, system_prompt: str = "", 
+                         read_timeout: int = 240) -> Tuple[str, dict, dict]:
         
         # Get instance configuration
         try:
@@ -174,17 +176,24 @@ class OllamaConverse:
                 use_runpod_wrapper = False
                 
         except Exception as e:
-            return (f"Error: {str(e)}", {})
+            return (f"Error: {str(e)}", {}, {})
         
         # Build messages array for chat completions
         messages = []
         
-        # Add system message if provided
+        # Load existing conversation history if provided
+        if context and "messages" in context:
+            messages = context["messages"].copy()
+        
+        # Add system message if provided and not already in history
         if system_prompt.strip():
-            messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
+            # Check if system message already exists
+            has_system = any(msg.get("role") == "system" for msg in messages)
+            if not has_system:
+                messages.insert(0, {
+                    "role": "system",
+                    "content": system_prompt
+                })
         
         # Add user message with text and optional image
         user_content = []
@@ -204,7 +213,7 @@ class OllamaConverse:
                     }
                 })
             except Exception as e:
-                return (f"Error processing image: {str(e)}", {})
+                return (f"Error processing image: {str(e)}", {}, {})
         
         messages.append({
             "role": "user",
@@ -249,6 +258,8 @@ class OllamaConverse:
             
             result = response.json()
             
+            assistant_response = None
+            
             # Parse response based on format (RunPod wrapper vs direct)
             if use_runpod_wrapper:
                 # RunPod wrapped response
@@ -259,18 +270,41 @@ class OllamaConverse:
                         if isinstance(choices, list) and len(choices) > 0:
                             choice = choices[0]
                             if "message" in choice and "content" in choice["message"]:
-                                return (choice["message"]["content"], output_meta)
+                                assistant_response = choice["message"]["content"]
                     elif isinstance(chat_response, str):
-                        return (chat_response, output_meta)
+                        assistant_response = chat_response
             else:
                 # Direct OpenAI-compatible response
                 if "choices" in result and isinstance(result["choices"], list) and len(result["choices"]) > 0:
                     choice = result["choices"][0]
                     if "message" in choice and "content" in choice["message"]:
-                        return (choice["message"]["content"], output_meta)
+                        assistant_response = choice["message"]["content"]
+            
+            # If we got a response, update the conversation context
+            if assistant_response:
+                # Add assistant response to message history
+                messages.append({
+                    "role": "assistant",
+                    "content": assistant_response
+                })
+                
+                # Create updated context
+                updated_context = {
+                    "messages": messages,
+                    "last_response": assistant_response,
+                    "instance_name": instance_name
+                }
+                
+                return (assistant_response, updated_context, output_meta)
             
             # Final fallback: return the full response as JSON string
-            return (json.dumps(result, indent=2), output_meta)
+            fallback_response = json.dumps(result, indent=2)
+            updated_context = {
+                "messages": messages,
+                "last_response": fallback_response,
+                "instance_name": instance_name
+            }
+            return (fallback_response, updated_context, output_meta)
             
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Request error: {str(e)}")
