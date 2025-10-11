@@ -6,6 +6,7 @@ import torch
 import os
 import random
 import tempfile
+import time
 from PIL import Image
 from typing import Tuple
 import folder_paths
@@ -202,6 +203,50 @@ class WAN22GenerateVideo:
         
         raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
 
+    def poll_for_completion(self, job_id: str, headers: dict, max_wait_time: int = 600) -> dict:
+        """Poll RunPod for job completion"""
+        start_time = time.time()
+        poll_interval = 5  # Start with 5 second intervals
+        
+        while True:
+            # Check if we've exceeded max wait time
+            elapsed_time = time.time() - start_time
+            if elapsed_time > max_wait_time:
+                raise RuntimeError(f"Video generation timed out after {max_wait_time} seconds")
+            
+            try:
+                # Poll the job status using the RunPod status endpoint
+                # Construct the status URL - this may need adjustment based on your RunPod setup
+                status_url = f"https://api.runpod.ai/v2/{job_id}/status"
+                
+                response = requests.get(status_url, headers=headers, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                
+                status = result.get("status", "UNKNOWN")
+                
+                if status == "COMPLETED":
+                    return result
+                elif status == "FAILED":
+                    error_msg = result.get("error", "Unknown error occurred")
+                    raise RuntimeError(f"Video generation failed: {error_msg}")
+                elif status in ["IN_PROGRESS", "IN_QUEUE"]:
+                    # Still processing, wait before next poll
+                    print(f"Video generation in progress... ({elapsed_time:.1f}s elapsed)")
+                    time.sleep(poll_interval)
+                    
+                    # Gradually increase poll interval to be less aggressive
+                    if elapsed_time > 60:
+                        poll_interval = min(15, poll_interval + 2)
+                else:
+                    # Unknown status, wait and try again
+                    time.sleep(poll_interval)
+                    
+            except requests.exceptions.RequestException as e:
+                # Network error, wait and retry
+                print(f"Polling error: {e}, retrying in {poll_interval} seconds...")
+                time.sleep(poll_interval)
+
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
@@ -246,6 +291,16 @@ class WAN22GenerateVideo:
             response.raise_for_status()
             
             result = response.json()
+            
+            # Check if job is still in progress
+            if result.get("status") == "IN_PROGRESS":
+                job_id = result.get("id")
+                if job_id:
+                    print(f"Video generation started, job ID: {job_id}")
+                    # Poll for completion
+                    result = self.poll_for_completion(job_id, headers)
+                else:
+                    raise RuntimeError("Job started but no ID returned for polling")
             
             # Parse the response to extract video data
             if ("output" in result and 
