@@ -3,13 +3,25 @@ import { app } from "../../scripts/app.js";
 app.registerExtension({
   name: "comfybros.serverlessConfig",
 
-  // Declare a hidden setting to hold our list of serverless instances
+  // Declare hidden settings to hold our data
   settings: [
     {
       id: "serverlessConfig.instances",
       name: "Serverless Instances",
       type: "hidden",
       defaultValue: []
+    },
+    {
+      id: "serverlessConfig.loras",
+      name: "LoRA Models",
+      type: "hidden",
+      defaultValue: []
+    },
+    {
+      id: "serverlessConfig.managementEndpoint",
+      name: "Management Endpoint",
+      type: "hidden",
+      defaultValue: null
     }
   ],
 
@@ -158,6 +170,74 @@ app.registerExtension({
           });
         }
 
+        // LoRA management functions
+        async function queryManagementInstance() {
+          const managementInstance = findManagementInstance();
+          if (!managementInstance || !managementInstance.endpoint || !managementInstance.auth_token) {
+            alert("No management instance configured. Please set up a management instance first (name should contain 'management').");
+            return;
+          }
+
+          const managementEndpoint = {
+            endpoint: managementInstance.endpoint,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${managementInstance.auth_token}`
+            }
+          };
+
+          const payload = {
+            "input": {
+              "workflow_name": "module_management",
+              "workflow_params": {
+                "management_action": "list",
+                "model_kind": "loras"
+              }
+            }
+          };
+
+          try {
+            const response = await fetch(managementEndpoint.endpoint, {
+              method: 'POST',
+              headers: managementEndpoint.headers,
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.output && result.output.result && result.output.result.models) {
+              const loras = result.output.result.models.map(model => ({
+                name: model.model_name,
+                path: model.file_path,
+                size: model.file_size,
+                created: new Date(model.created_time * 1000),
+                modified: new Date(model.modified_time * 1000),
+                provider: model.model_provider || 'unknown'
+              }));
+              
+              app.extensionManager.setting.set("serverlessConfig.loras", loras);
+              alert(`Successfully loaded ${loras.length} LoRA models!`);
+            } else {
+              throw new Error("Unexpected response format");
+            }
+          } catch (error) {
+            alert(`Error querying management instance: ${error.message}`);
+            console.error("Management query error:", error);
+          }
+        }
+
+        function findManagementInstance() {
+          return instances.find(instance => 
+            instance.provider === "RunPod" && 
+            instance.name && 
+            instance.name.toLowerCase().includes("management")
+          ) || instances[0]; // fallback to first instance
+        }
+
         // Create buttons once (they never get recreated)
         const add = document.createElement("button");
         add.textContent = "Add New Instance";
@@ -237,8 +317,27 @@ app.registerExtension({
           input.click();
         };
 
+        const refreshBtn = document.createElement("button");
+        refreshBtn.textContent = "Refresh LoRAs";
+        refreshBtn.style.backgroundColor = "#9C27B0";
+        refreshBtn.style.color = "white";
+        refreshBtn.style.border = "none";
+        refreshBtn.style.padding = "10px 20px";
+        refreshBtn.style.borderRadius = "5px";
+        refreshBtn.style.cursor = "pointer";
+        refreshBtn.style.marginRight = "10px";
+        refreshBtn.onclick = () => {
+          refreshBtn.textContent = "Loading...";
+          refreshBtn.disabled = true;
+          queryManagementInstance().finally(() => {
+            refreshBtn.textContent = "Refresh LoRAs";
+            refreshBtn.disabled = false;
+          });
+        };
+
         // Add buttons to buttons container (once)
         buttonsContainer.appendChild(add);
+        buttonsContainer.appendChild(refreshBtn);
         buttonsContainer.appendChild(exportBtn);
         buttonsContainer.appendChild(importBtn);
 
