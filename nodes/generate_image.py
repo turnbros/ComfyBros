@@ -14,8 +14,7 @@ class GenerateImage:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "endpoint": ("STRING", {"default": "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync"}),
-                "auth_token": ("STRING", {"default": ""}),
+                "endpoint_config": ("ENDPOINT_CONFIG",),
                 "positive_prompt": ("STRING", {"multiline": True, "default": "a majestic dragon flying over a medieval castle"}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "checkpoint": ("STRING", {"default": "novaRealityXL_illustriousV70.safetensors"}),
@@ -60,16 +59,14 @@ class GenerateImage:
         
         return image_tensor
 
-    def generate(self, endpoint: str, auth_token: str, positive_prompt: str, 
+    def generate(self, endpoint_config: dict, positive_prompt: str, 
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
                 scheduler: str, workflow_name: str) -> Tuple[torch.Tensor, str]:
         
-        # Prepare headers
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {auth_token}'
-        }
+        # Extract endpoint and headers from config
+        endpoint = endpoint_config["endpoint"]
+        headers = endpoint_config["headers"]
         
         # Prepare payload structure
         payload = {
