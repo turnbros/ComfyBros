@@ -6,6 +6,7 @@ import torch
 import os
 from PIL import Image
 from typing import Tuple
+import folder_paths
 
 
 class GenerateImage:
@@ -15,25 +16,16 @@ class GenerateImage:
     def get_instance_names(cls):
         """Get list of configured serverless instance names"""
         try:
+            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
 
-            
-            # Fallback: try to read from file system
-            import folder_paths
-            possible_paths = [
-                os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json"),
-                os.path.join(folder_paths.base_path, "comfy.settings.json"),
-                os.path.join(os.path.dirname(__file__), "..", "instances.json")
-            ]
-            
-            for settings_file in possible_paths:
-                if os.path.exists(settings_file):
-                    with open(settings_file, 'r') as f:
-                        settings = json.load(f)
-                        instances = settings.get("serverlessConfig.instances", [])
-                        if instances:
-                            instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
-                            if instance_names:
-                                return instance_names
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    if instances:
+                        instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
+                        if instance_names:
+                            return instance_names
                                 
         except Exception as e:
             print(f"Error reading instance configuration: {e}")
@@ -92,24 +84,13 @@ class GenerateImage:
     def get_instance_config(self, instance_name: str) -> dict:
         """Get the configuration for the specified instance"""
         try:
-            import folder_paths
-            
-            # Try multiple possible locations for extension settings
-            possible_paths = [
-                os.path.join(folder_paths.base_path, "user", "default", "settings.json"),
-                os.path.join(folder_paths.base_path, "comfy.settings.json"),
-                os.path.join(os.path.dirname(__file__), "..", "instances.json")
-            ]
-            
-            for settings_file in possible_paths:
-                if os.path.exists(settings_file):
-                    with open(settings_file, 'r') as f:
-                        settings = json.load(f)
-                        # Check different possible keys
-                        instances = (settings.get("serverlessConfig.instances") or 
-                                   settings.get("comfybros.serverlessConfig", {}).get("serverlessConfig.instances") or
-                                   settings.get("instances", []))
-                        
+            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
+
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    if instances:
                         for instance in instances:
                             if instance.get("name") == instance_name:
                                 return {
