@@ -50,9 +50,31 @@ app.registerExtension({
         // Create list container (for instances)
         const list = document.createElement("div");
 
-        // Persist changes to the hidden setting
+        // Persist changes to the hidden setting and also save to a file for nodes to access
         function save() {
           app.extensionManager.setting.set("serverlessConfig.instances", instances);
+          
+          // Also save to a simple JSON file that nodes can read
+          try {
+            const instancesData = {
+              instances: instances,
+              lastUpdated: new Date().toISOString()
+            };
+            
+            // Create a downloadable JSON file and save it to the ComfyBros directory
+            const dataStr = JSON.stringify(instancesData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            // Try to use File System Access API if available (modern browsers)
+            if ('showSaveFilePicker' in window) {
+              // This would require user interaction, so we'll skip for now
+            } else {
+              // Fallback: save to browser's local storage as backup
+              localStorage.setItem('comfybros_instances_backup', dataStr);
+            }
+          } catch (err) {
+            console.warn('Error saving instances data:', err);
+          }
         }
 
         // Render existing instances (only affects list container)

@@ -15,18 +15,40 @@ class GenerateImage:
     def get_instance_names(cls):
         """Get list of configured serverless instance names"""
         try:
-            # Try to read from ComfyUI settings if available
-            import folder_paths
-            settings_file = os.path.join(folder_paths.get_user_data_path(), "settings.json")
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    settings = json.load(f)
+            # Try to access ComfyUI's settings system directly
+            import comfy.model_management
+            import server
+            
+            # Access the settings through ComfyUI's server instance
+            if hasattr(server, 'PromptServer'):
+                prompt_server = server.PromptServer.instance
+                if hasattr(prompt_server, 'settings'):
+                    settings = prompt_server.settings
                     instances = settings.get("serverlessConfig.instances", [])
-                    instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
-                    if instance_names:
-                        return instance_names
-        except Exception:
-            pass
+                    if instances:
+                        instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
+                        if instance_names:
+                            return instance_names
+            
+            # Fallback: try to read from file system
+            import folder_paths
+            possible_paths = [
+                os.path.join(folder_paths.get_user_data_path(), "settings.json"),
+                os.path.join(os.path.dirname(__file__), "..", "instances.json")
+            ]
+            
+            for settings_file in possible_paths:
+                if os.path.exists(settings_file):
+                    with open(settings_file, 'r') as f:
+                        settings = json.load(f)
+                        instances = settings.get("serverlessConfig.instances", [])
+                        if instances:
+                            instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
+                            if instance_names:
+                                return instance_names
+                                
+        except Exception as e:
+            print(f"Error reading instance configuration: {e}")
         return ["No instances configured"]
     
     @classmethod
@@ -83,20 +105,33 @@ class GenerateImage:
         """Get the configuration for the specified instance"""
         try:
             import folder_paths
-            settings_file = os.path.join(folder_paths.get_user_data_path(), "settings.json")
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    settings = json.load(f)
-                    instances = settings.get("serverlessConfig.instances", [])
-                    for instance in instances:
-                        if instance.get("name") == instance_name:
-                            return {
-                                "endpoint": instance.get("endpoint", ""),
-                                "headers": {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': f'Bearer {instance.get("auth_token", "")}'
+            
+            # Try multiple possible locations for extension settings
+            possible_paths = [
+                os.path.join(folder_paths.get_user_data_path(), "extensions", "comfybros.serverlessConfig.json"),
+                os.path.join(folder_paths.get_user_data_path(), "extension_settings.json"),
+                os.path.join(folder_paths.get_user_data_path(), "settings.json"),
+                os.path.join(os.path.dirname(__file__), "..", "instances.json")
+            ]
+            
+            for settings_file in possible_paths:
+                if os.path.exists(settings_file):
+                    with open(settings_file, 'r') as f:
+                        settings = json.load(f)
+                        # Check different possible keys
+                        instances = (settings.get("serverlessConfig.instances") or 
+                                   settings.get("comfybros.serverlessConfig", {}).get("serverlessConfig.instances") or
+                                   settings.get("instances", []))
+                        
+                        for instance in instances:
+                            if instance.get("name") == instance_name:
+                                return {
+                                    "endpoint": instance.get("endpoint", ""),
+                                    "headers": {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': f'Bearer {instance.get("auth_token", "")}'
+                                    }
                                 }
-                            }
         except Exception as e:
             raise RuntimeError(f"Error loading instance configuration: {str(e)}")
         
