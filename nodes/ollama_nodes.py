@@ -6,6 +6,7 @@ import torch
 import random
 import re
 import os
+import folder_paths
 from PIL import Image
 from typing import Tuple, Optional
 
@@ -67,17 +68,39 @@ class OllamaConfiguration:
 
 class OllamaConverse:
     @classmethod
+    def get_instance_names(cls):
+        """Get list of configured serverless instance names"""
+        try:
+            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
+
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    if instances:
+                        instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
+                        if instance_names:
+                            return instance_names
+                                
+        except Exception as e:
+            print(f"Error reading instance configuration: {e}")
+        return ["No instances configured"]
+
+    @classmethod
     def INPUT_TYPES(cls):
+        instance_names = cls.get_instance_names()
         return {
             "required": {
+                "instance_name": (instance_names, {"default": instance_names[0] if instance_names else "No instances configured"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
+                "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
+                "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
             },
             "optional": {
-                "connection": ("OLLAMA_CONNECTION",),
-                "config": ("OLLAMA_CONFIG",),
-                "meta": ("OLLAMA_META",),
                 "image": ("IMAGE",),
                 "system_prompt": ("STRING", {"multiline": True, "default": ""}),
+                "read_timeout": ("INT", {"default": 240, "min": 1, "max": 600}),
             }
         }
     
@@ -106,41 +129,51 @@ class OllamaConverse:
         
         return img_str
     
-    def generate_response(self, prompt: str, connection: Optional[dict] = None, 
-                         config: Optional[dict] = None, meta: Optional[dict] = None,
-                         image: Optional[torch.Tensor] = None, system_prompt: str = "") -> Tuple[str, dict]:
+    def get_instance_config(self, instance_name: str) -> dict:
+        """Get the configuration for the specified instance"""
+        try:
+            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
+
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    if instances:
+                        for instance in instances:
+                            if instance.get("name") == instance_name:
+                                return {
+                                    "endpoint": instance.get("endpoint", ""),
+                                    "headers": {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': f'Bearer {instance.get("auth_token", "")}'
+                                    }
+                                }
+        except Exception as e:
+            raise RuntimeError(f"Error loading instance configuration: {str(e)}")
         
-        # Use meta if provided, otherwise use direct connection/config
-        if meta is not None:
-            actual_connection = meta.get("connection")
-            actual_config = meta.get("config")
-        else:
-            actual_connection = connection
-            actual_config = config
+        raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
+
+    def generate_response(self, instance_name: str, prompt: str, max_tokens: int, 
+                         temperature: float, seed: int, image: Optional[torch.Tensor] = None, 
+                         system_prompt: str = "", read_timeout: int = 240) -> Tuple[str, dict]:
         
-        # Validate we have required connection and config
-        if actual_connection is None:
-            return ("Error: No connection provided (either directly or via meta)", {})
-        if actual_config is None:
-            return ("Error: No configuration provided (either directly or via meta)", {})
+        # Get instance configuration
+        try:
+            instance_config = self.get_instance_config(instance_name)
+            endpoint_url = instance_config["endpoint"]
+            headers = instance_config["headers"]
+        except Exception as e:
+            return (f"Error: {str(e)}", {})
         
-        endpoint_url = actual_connection["endpoint_url"]
-        headers = actual_connection["headers"]
-        
-        # Handle seed and control_after_generate logic
-        current_seed = actual_config.get("seed", -1)
-        control_after_generate = actual_config.get("control_after_generate", "fixed")
-        
-        # If control_after_generate is "randomize", generate a random seed
-        if control_after_generate == "randomize":
-            current_seed = random.randint(0, 2147483647)
+        # Use the seed parameter directly
+        current_seed = seed
         
         # Prepare the input payload
         input_data = {
             "prompt": prompt,
             "options": {
-                "num_predict": actual_config["max_tokens"],
-                "temperature": actual_config["temperature"]
+                "num_predict": max_tokens,
+                "temperature": temperature
             }
         }
         
@@ -158,29 +191,20 @@ class OllamaConverse:
                 image_b64 = self.tensor_to_base64(image)
                 input_data["images"] = [image_b64]
             except Exception as e:
-                # Create meta for error case
-                output_meta = {
-                    "connection": actual_connection,
-                    "config": actual_config
-                }
-                return (f"Error processing image: {str(e)}", output_meta)
+                return (f"Error processing image: {str(e)}", {})
         
         payload = {"input": input_data}
         
-        # Create updated config with the current seed for passing to next node
-        updated_config = actual_config.copy()
-        updated_config["current_seed"] = current_seed
-        
-        # Create meta output to pass connection and config to next node
+        # Create meta output for compatibility
         output_meta = {
-            "connection": actual_connection,
-            "config": updated_config
+            "instance_name": instance_name,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "seed": current_seed
         }
         
         try:
-            # Defaults to 240 since that seems to be how long a coldstart takes
-            timeout = actual_config.get("read_timeout", 240)
-            response = requests.post(endpoint_url, headers=headers, json=payload, timeout=timeout)
+            response = requests.post(endpoint_url, headers=headers, json=payload, timeout=read_timeout)
             response.raise_for_status()
             
             result = response.json()
