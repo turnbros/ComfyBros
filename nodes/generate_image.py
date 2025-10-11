@@ -3,6 +3,7 @@ import json
 import base64
 import io
 import torch
+import os
 from PIL import Image
 from typing import Tuple
 
@@ -11,10 +12,29 @@ class GenerateImage:
     """Generate images using RunPod serverless instances"""
     
     @classmethod
+    def get_instance_names(cls):
+        """Get list of configured serverless instance names"""
+        try:
+            # Try to read from ComfyUI settings if available
+            import folder_paths
+            settings_file = os.path.join(folder_paths.get_user_data_path(), "settings.json")
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
+                    if instance_names:
+                        return instance_names
+        except Exception:
+            pass
+        return ["No instances configured"]
+    
+    @classmethod
     def INPUT_TYPES(cls):
+        instance_names = cls.get_instance_names()
         return {
             "required": {
-                "endpoint_config": ("ENDPOINT_CONFIG",),
+                "instance_name": (instance_names, {"default": instance_names[0] if instance_names else "No instances configured"}),
                 "positive_prompt": ("STRING", {"multiline": True, "default": "a majestic dragon flying over a medieval castle"}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "checkpoint": ("STRING", {"default": "novaRealityXL_illustriousV70.safetensors"}),
@@ -59,14 +79,38 @@ class GenerateImage:
         
         return image_tensor
 
-    def generate(self, endpoint_config: dict, positive_prompt: str, 
+    def get_instance_config(self, instance_name: str) -> dict:
+        """Get the configuration for the specified instance"""
+        try:
+            import folder_paths
+            settings_file = os.path.join(folder_paths.get_user_data_path(), "settings.json")
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    instances = settings.get("serverlessConfig.instances", [])
+                    for instance in instances:
+                        if instance.get("name") == instance_name:
+                            return {
+                                "endpoint": instance.get("endpoint", ""),
+                                "headers": {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': f'Bearer {instance.get("auth_token", "")}'
+                                }
+                            }
+        except Exception as e:
+            raise RuntimeError(f"Error loading instance configuration: {str(e)}")
+        
+        raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
+
+    def generate(self, instance_name: str, positive_prompt: str, 
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
                 scheduler: str, workflow_name: str) -> Tuple[torch.Tensor, str]:
         
-        # Extract endpoint and headers from config
-        endpoint = endpoint_config["endpoint"]
-        headers = endpoint_config["headers"]
+        # Get instance configuration
+        config = self.get_instance_config(instance_name)
+        endpoint = config["endpoint"]
+        headers = config["headers"]
         
         # Prepare payload structure
         payload = {
