@@ -160,47 +160,87 @@ class OllamaConverse:
         # Get instance configuration
         try:
             instance_config = self.get_instance_config(instance_name)
-            endpoint_url = instance_config["endpoint"]
+            base_endpoint = instance_config["endpoint"]
             headers = instance_config["headers"]
+            
+            # Construct the chat completions endpoint
+            # If it's a RunPod endpoint, wrap the chat completions call
+            if "runpod.ai" in base_endpoint:
+                endpoint_url = base_endpoint
+                use_runpod_wrapper = True
+            else:
+                # Direct OpenAI-compatible endpoint
+                endpoint_url = f"{base_endpoint.rstrip('/')}/v1/chat/completions"
+                use_runpod_wrapper = False
+                
         except Exception as e:
             return (f"Error: {str(e)}", {})
         
-        # Use the seed parameter directly
-        current_seed = seed
+        # Build messages array for chat completions
+        messages = []
         
-        # Prepare the input payload
-        input_data = {
-            "prompt": prompt,
-            "options": {
-                "num_predict": max_tokens,
-                "temperature": temperature
-            }
-        }
-        
-        # Add seed to options if it's not -1 (default)
-        if current_seed != -1:
-            input_data["options"]["seed"] = current_seed
-        
-        # Add system prompt if provided
+        # Add system message if provided
         if system_prompt.strip():
-            input_data["system"] = system_prompt
+            messages.append({
+                "role": "system",
+                "content": system_prompt
+            })
+        
+        # Add user message with text and optional image
+        user_content = []
+        user_content.append({
+            "type": "text",
+            "text": prompt
+        })
         
         # Add image if provided
         if image is not None:
             try:
                 image_b64 = self.tensor_to_base64(image)
-                input_data["images"] = [image_b64]
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_b64}"
+                    }
+                })
             except Exception as e:
                 return (f"Error processing image: {str(e)}", {})
         
-        payload = {"input": input_data}
+        messages.append({
+            "role": "user",
+            "content": user_content if len(user_content) > 1 else prompt
+        })
+        
+        # Prepare the chat completions payload
+        chat_payload = {
+            "model": "llama",  # Default model name
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False
+        }
+        
+        # Add seed if provided
+        if seed != -1:
+            chat_payload["seed"] = seed
+        
+        # Wrap in RunPod format if needed
+        if use_runpod_wrapper:
+            payload = {
+                "input": {
+                    "api_endpoint": "/v1/chat/completions",
+                    "payload": chat_payload
+                }
+            }
+        else:
+            payload = chat_payload
         
         # Create meta output for compatibility
         output_meta = {
             "instance_name": instance_name,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "seed": current_seed
+            "seed": seed
         }
         
         try:
@@ -209,20 +249,25 @@ class OllamaConverse:
             
             result = response.json()
             
-            # Extract the response text from RunPod response structure
-            if "output" in result and isinstance(result["output"], list) and len(result["output"]) > 0:
-                output_item = result["output"][0]
-                if "choices" in output_item and isinstance(output_item["choices"], list) and len(output_item["choices"]) > 0:
-                    choice = output_item["choices"][0]
-                    if "text" in choice:
-                        return (choice["text"], output_meta)
-            
-            # Fallback for old response format
-            if "output" in result:
-                if isinstance(result["output"], dict) and "response" in result["output"]:
-                    return (result["output"]["response"], output_meta)
-                elif isinstance(result["output"], str):
-                    return (result["output"], output_meta)
+            # Parse response based on format (RunPod wrapper vs direct)
+            if use_runpod_wrapper:
+                # RunPod wrapped response
+                if "output" in result:
+                    chat_response = result["output"]
+                    if isinstance(chat_response, dict) and "choices" in chat_response:
+                        choices = chat_response["choices"]
+                        if isinstance(choices, list) and len(choices) > 0:
+                            choice = choices[0]
+                            if "message" in choice and "content" in choice["message"]:
+                                return (choice["message"]["content"], output_meta)
+                    elif isinstance(chat_response, str):
+                        return (chat_response, output_meta)
+            else:
+                # Direct OpenAI-compatible response
+                if "choices" in result and isinstance(result["choices"], list) and len(result["choices"]) > 0:
+                    choice = result["choices"][0]
+                    if "message" in choice and "content" in choice["message"]:
+                        return (choice["message"]["content"], output_meta)
             
             # Final fallback: return the full response as JSON string
             return (json.dumps(result, indent=2), output_meta)
