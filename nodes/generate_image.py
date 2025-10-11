@@ -33,7 +33,8 @@ class GenerateImage:
             # Fallback: try to read from file system
             import folder_paths
             possible_paths = [
-                os.path.join(folder_paths.get_user_data_path(), "settings.json"),
+                os.path.join(folder_paths.base_path, "user", "default", "settings.json"),
+                os.path.join(folder_paths.base_path, "settings.json"),
                 os.path.join(os.path.dirname(__file__), "..", "instances.json")
             ]
             
@@ -108,9 +109,8 @@ class GenerateImage:
             
             # Try multiple possible locations for extension settings
             possible_paths = [
-                os.path.join(folder_paths.get_user_data_path(), "extensions", "comfybros.serverlessConfig.json"),
-                os.path.join(folder_paths.get_user_data_path(), "extension_settings.json"),
-                os.path.join(folder_paths.get_user_data_path(), "settings.json"),
+                os.path.join(folder_paths.base_path, "user", "default", "settings.json"),
+                os.path.join(folder_paths.base_path, "comfy.settings.json"),
                 os.path.join(os.path.dirname(__file__), "..", "instances.json")
             ]
             
