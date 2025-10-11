@@ -343,7 +343,7 @@ class WAN22GenerateVideo:
                 # Construct the status URL - this may need adjustment based on your RunPod setup
                 status_url = f"https://api.runpod.ai/v2/{job_id}/status"
                 
-                response = requests.get(status_url, headers=headers, timeout=30)
+                response = requests.get(status_url, headers=headers, timeout=900)
                 response.raise_for_status()
                 result = response.json()
                 
