@@ -222,7 +222,7 @@ class OllamaConverse:
         
         # Prepare the chat completions payload
         chat_payload = {
-            "model": "hf.co/mradermacher/Qwen3-30B-A3B-abliterated-erotic-i1-GGUF:Q4_K_M",  # Default model name
+            "model": "mdq100/Gemma3-Instruct-Abliterated:27b",  # Default model name
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
