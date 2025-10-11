@@ -7,8 +7,9 @@ import os
 import random
 import tempfile
 import time
+import subprocess
 from PIL import Image
-from typing import Tuple
+from typing import Tuple, List
 import folder_paths
 
 
@@ -124,6 +125,90 @@ class WAN22GenerateVideo:
             
         except Exception as e:
             raise RuntimeError(f"Error converting base64 to video file: {str(e)}")
+
+    def frames_to_video_file(self, frames: List[dict], fps: int, output_filename: str = None) -> str:
+        """Convert list of base64 frame data to video file using ffmpeg"""
+        try:
+            # Get output directory
+            try:
+                output_dir = folder_paths.get_output_directory()
+            except:
+                output_dir = tempfile.gettempdir()
+            
+            # Create temporary directory for frames
+            temp_dir = tempfile.mkdtemp(prefix='video_frames_', dir=output_dir)
+            
+            # Sort frames by frame_number to ensure correct sequence
+            sorted_frames = sorted(frames, key=lambda x: x.get('frame_number', 0))
+            
+            # Save each frame as an image file
+            frame_paths = []
+            for i, frame in enumerate(sorted_frames):
+                frame_data = frame.get('data', '')
+                if not frame_data:
+                    continue
+                    
+                # Decode base64 to image
+                image_bytes = base64.b64decode(frame_data)
+                frame_path = os.path.join(temp_dir, f"frame_{i:06d}.png")
+                
+                with open(frame_path, 'wb') as f:
+                    f.write(image_bytes)
+                frame_paths.append(frame_path)
+            
+            if not frame_paths:
+                raise RuntimeError("No valid frames found to create video")
+            
+            # Create output video file
+            if output_filename:
+                video_filename = output_filename
+            else:
+                video_filename = f"generated_video_{int(time.time())}.mp4"
+            
+            video_path = os.path.join(output_dir, video_filename)
+            
+            # Use ffmpeg to create video from frames
+            # Pattern: frame_%06d.png means frame_000000.png, frame_000001.png, etc.
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-y',  # Overwrite output file
+                '-framerate', str(fps),
+                '-i', os.path.join(temp_dir, 'frame_%06d.png'),
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-crf', '18',  # High quality
+                video_path
+            ]
+            
+            # Run ffmpeg
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg failed: {result.stderr}")
+            
+            # Clean up temporary frame files
+            for frame_path in frame_paths:
+                try:
+                    os.remove(frame_path)
+                except:
+                    pass
+            
+            try:
+                os.rmdir(temp_dir)
+            except:
+                pass
+            
+            return video_path
+            
+        except Exception as e:
+            # Clean up on error
+            try:
+                for frame_path in frame_paths:
+                    os.remove(frame_path)
+                os.rmdir(temp_dir)
+            except:
+                pass
+            raise RuntimeError(f"Error creating video from frames: {str(e)}")
 
     def process_input_image(self, input_image, input_image_string: str = None) -> str:
         """Process input image - either torch tensor, base64 data, or file path"""
@@ -302,13 +387,49 @@ class WAN22GenerateVideo:
                 else:
                     raise RuntimeError("Job started but no ID returned for polling")
             
-            # Parse the response to extract video data
+            # Parse the response to extract frame data (new schema)
             if ("output" in result and 
                 "result" in result["output"] and 
-                "videos" in result["output"]["result"] and 
-                len(result["output"]["result"]["videos"]) > 0):
+                "frames" in result["output"]["result"] and 
+                len(result["output"]["result"]["frames"]) > 0):
                 
-                # Get the first video
+                # Get frames from the new schema
+                frames = result["output"]["result"]["frames"]
+                frame_count = result["output"]["result"].get("frame_count", len(frames))
+                
+                print(f"Converting {frame_count} frames to video...")
+                
+                # Convert frames to video file
+                video_filename = f"generated_video_{int(time.time())}.mp4"
+                video_file_path = self.frames_to_video_file(frames, fps, video_filename)
+                
+                # Create metadata string with generation parameters
+                metadata = {
+                    "filename": video_filename,
+                    "file_path": video_file_path,
+                    "format": "MP4",
+                    "frame_count": frame_count,
+                    "parameters": result["output"]["result"].get("parameters", {}),
+                    "execution_time": result.get("executionTime", 0),
+                    "delay_time": result.get("delayTime", 0),
+                    "status": result["output"]["result"].get("status", "unknown"),
+                    "video_info": {
+                        "width": width,
+                        "height": height,
+                        "length": length,
+                        "fps": fps
+                    }
+                }
+                
+                return (video_file_path, json.dumps(metadata, indent=2))
+                
+            # Fallback: try old schema for backwards compatibility
+            elif ("output" in result and 
+                  "result" in result["output"] and 
+                  "videos" in result["output"]["result"] and 
+                  len(result["output"]["result"]["videos"]) > 0):
+                
+                # Get the first video (old schema)
                 first_video = result["output"]["result"]["videos"][0]
                 
                 if "data" in first_video:
