@@ -59,8 +59,8 @@ class WAN22GenerateVideo:
             }
         }
     
-    RETURN_TYPES = ("VIDEO", "STRING")
-    RETURN_NAMES = ("video_data", "metadata")
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("frames", "metadata")
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Video Generation"
     
@@ -88,6 +88,45 @@ class WAN22GenerateVideo:
         buffer.seek(0)
         
         return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    def frames_to_tensor_batch(self, frames: List[dict]) -> torch.Tensor:
+        """Convert list of base64 frame data to batched tensor for ComfyUI"""
+        # Sort frames by frame_number to ensure correct sequence
+        sorted_frames = sorted(frames, key=lambda x: x.get('frame_number', 0))
+        
+        frame_tensors = []
+        for frame in sorted_frames:
+            frame_data = frame.get('data', '')
+            if not frame_data:
+                continue
+            
+            # Decode base64 to image bytes
+            image_bytes = base64.b64decode(frame_data)
+            
+            # Create PIL Image from bytes
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            
+            # Convert to RGB if needed
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            
+            # Convert PIL to tensor [H, W, C] format
+            width, height = pil_image.size
+            pixel_data = list(pil_image.getdata())
+            
+            # Convert to torch tensor and reshape
+            frame_tensor = torch.tensor(pixel_data, dtype=torch.float32)
+            frame_tensor = frame_tensor.view(height, width, 3) / 255.0  # Normalize to 0-1
+            
+            frame_tensors.append(frame_tensor)
+        
+        if not frame_tensors:
+            raise RuntimeError("No valid frames found to create tensor batch")
+        
+        # Stack all frames into a batch [B, H, W, C] format
+        batched_tensor = torch.stack(frame_tensors, dim=0)
+        
+        return batched_tensor
 
     def base64_to_video_file(self, base64_string: str, filename: str = None) -> str:
         """Convert base64 string to video file and return file path"""
@@ -335,7 +374,7 @@ class WAN22GenerateVideo:
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str, input_image_string: str = None) -> Tuple[str, str]:
+                scheduler: str, input_image_string: str = None) -> Tuple[torch.Tensor, str]:
         
         # Process the input image
         processed_image = self.process_input_image(input_image, input_image_string)
@@ -397,18 +436,15 @@ class WAN22GenerateVideo:
                 frames = result["output"]["result"]["frames"]
                 frame_count = result["output"]["result"].get("frame_count", len(frames))
                 
-                print(f"Converting {frame_count} frames to video...")
+                print(f"Converting {frame_count} frames to tensor batch...")
                 
-                # Convert frames to video file
-                video_filename = f"generated_video_{int(time.time())}.mp4"
-                video_file_path = self.frames_to_video_file(frames, fps, video_filename)
+                # Convert frames to tensor batch
+                frame_tensors = self.frames_to_tensor_batch(frames)
                 
                 # Create metadata string with generation parameters
                 metadata = {
-                    "filename": video_filename,
-                    "file_path": video_file_path,
-                    "format": "MP4",
                     "frame_count": frame_count,
+                    "tensor_shape": list(frame_tensors.shape),
                     "parameters": result["output"]["result"].get("parameters", {}),
                     "execution_time": result.get("executionTime", 0),
                     "delay_time": result.get("delayTime", 0),
@@ -421,7 +457,7 @@ class WAN22GenerateVideo:
                     }
                 }
                 
-                return (video_file_path, json.dumps(metadata, indent=2))
+                return (frame_tensors, json.dumps(metadata, indent=2))
                 
             # Fallback: try old schema for backwards compatibility
             elif ("output" in result and 
@@ -433,31 +469,8 @@ class WAN22GenerateVideo:
                 first_video = result["output"]["result"]["videos"][0]
                 
                 if "data" in first_video:
-                    # Convert base64 video data to file
-                    video_base64 = first_video["data"]
-                    filename = first_video.get("filename", "generated_video.mp4")
-                    
-                    # Convert base64 to video file
-                    video_file_path = self.base64_to_video_file(video_base64, filename)
-                    
-                    # Create metadata string with generation parameters
-                    metadata = {
-                        "filename": filename,
-                        "file_path": video_file_path,
-                        "format": first_video.get("format", "MP4"),
-                        "parameters": result["output"]["result"].get("parameters", {}),
-                        "execution_time": result.get("executionTime", 0),
-                        "delay_time": result.get("delayTime", 0),
-                        "status": result["output"]["result"].get("status", "unknown"),
-                        "video_info": {
-                            "width": width,
-                            "height": height,
-                            "length": length,
-                            "fps": fps
-                        }
-                    }
-                    
-                    return (video_file_path, json.dumps(metadata, indent=2))
+                    # Old schema fallback - return error since we can't convert a single video file to frames
+                    raise RuntimeError("Old video format detected but this node now outputs individual frames. Please use the updated workflow that returns frames.")
                 else:
                     raise RuntimeError("No video data found in response")
             else:
