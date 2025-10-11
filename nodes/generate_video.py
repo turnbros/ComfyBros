@@ -38,7 +38,7 @@ class WAN22GenerateVideo:
         return {
             "required": {
                 "instance_name": (instance_names, {"default": instance_names[0] if instance_names else "No instances configured"}),
-                "input_image": ("STRING", {"multiline": True, "default": ""}),
+                "input_image": ("IMAGE",),
                 "positive_prompt": ("STRING", {"multiline": True, "default": "something positive"}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
@@ -50,6 +50,9 @@ class WAN22GenerateVideo:
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
                 "sampler_name": ("STRING", {"default": "euler"}),
                 "scheduler": ("STRING", {"default": "simple"}),
+            },
+            "optional": {
+                "input_image_string": ("STRING", {"multiline": True, "default": ""}),
             }
         }
     
@@ -58,21 +61,58 @@ class WAN22GenerateVideo:
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Video Generation"
     
-    def process_input_image(self, input_image: str) -> str:
-        """Process input image - either base64 data or file path"""
-        if not input_image.strip():
-            raise RuntimeError("Input image is required")
+    def tensor_to_base64(self, tensor: torch.Tensor) -> str:
+        """Convert torch tensor to base64 string"""
+        # Convert tensor from [B, H, W, C] format (ComfyUI format) to PIL Image
+        if tensor.dim() == 4:
+            # Take first batch item if batched
+            tensor = tensor[0]
         
-        # Check if it's already base64 encoded data
-        if input_image.startswith('data:image/'):
-            # Extract base64 data from data URL
-            return input_image.split(',', 1)[1]
-        elif self.is_base64(input_image):
-            # Already base64 encoded
-            return input_image
+        # Ensure tensor is in [H, W, C] format and convert to uint8
+        if tensor.max() <= 1.0:
+            # Tensor is normalized, scale to 0-255
+            tensor = (tensor * 255).clamp(0, 255).to(torch.uint8)
         else:
-            # Treat as file path
-            return self.file_to_base64(input_image)
+            tensor = tensor.clamp(0, 255).to(torch.uint8)
+        
+        # Convert to PIL Image
+        numpy_image = tensor.cpu().numpy()
+        pil_image = Image.fromarray(numpy_image, mode='RGB')
+        
+        # Convert to base64
+        buffer = io.BytesIO()
+        pil_image.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    def process_input_image(self, input_image, input_image_string: str = None) -> str:
+        """Process input image - either torch tensor, base64 data, or file path"""
+        # If input_image is a torch tensor (from IMAGE input)
+        if isinstance(input_image, torch.Tensor):
+            return self.tensor_to_base64(input_image)
+        
+        # If input_image_string is provided and input_image is empty/None, use the string
+        if input_image_string and input_image_string.strip():
+            input_image = input_image_string
+        
+        # Handle string inputs (base64 or file path)
+        if isinstance(input_image, str):
+            if not input_image.strip():
+                raise RuntimeError("Input image is required")
+            
+            # Check if it's already base64 encoded data
+            if input_image.startswith('data:image/'):
+                # Extract base64 data from data URL
+                return input_image.split(',', 1)[1]
+            elif self.is_base64(input_image):
+                # Already base64 encoded
+                return input_image
+            else:
+                # Treat as file path
+                return self.file_to_base64(input_image)
+        
+        raise RuntimeError("Invalid input image format")
     
     def is_base64(self, s: str) -> bool:
         """Check if string is valid base64"""
@@ -124,13 +164,13 @@ class WAN22GenerateVideo:
         
         raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
 
-    def generate(self, instance_name: str, input_image: str, positive_prompt: str, 
+    def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str) -> Tuple[str, str]:
+                scheduler: str, input_image_string: str = None) -> Tuple[str, str]:
         
         # Process the input image
-        processed_image = self.process_input_image(input_image)
+        processed_image = self.process_input_image(input_image, input_image_string)
         
         # Generate random seed if -1
         if seed == -1:
