@@ -15,25 +15,12 @@ class GenerateImage:
     def get_instance_names(cls):
         """Get list of configured serverless instance names"""
         try:
-            # Try to access ComfyUI's settings system directly
-            import comfy.model_management
-            import server
-            
-            # Access the settings through ComfyUI's server instance
-            if hasattr(server, 'PromptServer'):
-                prompt_server = server.PromptServer.instance
-                if hasattr(prompt_server, 'settings'):
-                    settings = prompt_server.settings
-                    instances = settings.get("serverlessConfig.instances", [])
-                    if instances:
-                        instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
-                        if instance_names:
-                            return instance_names
+
             
             # Fallback: try to read from file system
             import folder_paths
             possible_paths = [
-                os.path.join(folder_paths.base_path, "user", "default", "settings.json"),
+                os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json"),
                 os.path.join(folder_paths.base_path, "comfy.settings.json"),
                 os.path.join(os.path.dirname(__file__), "..", "instances.json")
             ]
@@ -50,7 +37,7 @@ class GenerateImage:
                                 
         except Exception as e:
             print(f"Error reading instance configuration: {e}")
-        return ["No instances configured"]
+        return ["No instances configured asdf"]
     
     @classmethod
     def INPUT_TYPES(cls):
