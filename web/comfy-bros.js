@@ -247,6 +247,7 @@ app.registerExtension({
         container.appendChild(list);
 
         // Initial render
+        el.innerHTML = "";
         redraw();
         el.appendChild(container);
       }
