@@ -237,8 +237,8 @@ class OllamaConverse:
         if use_runpod_wrapper:
             payload = {
                 "input": {
-                    "api_endpoint": "/v1/chat/completions",
-                    "payload": chat_payload
+                    "openai_route": "/v1/chat/completions",
+                    "openai_input": chat_payload
                 }
             }
         else:
