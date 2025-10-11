@@ -416,24 +416,8 @@ class WAN22GenerateVideo:
             
             result = response.json()
             
-            # Check if job is still in progress
-            if result.get("status") == "IN_PROGRESS":
-                job_id = result.get("id")
-                if job_id:
-                    print(f"Video generation started, job ID: {job_id}")
-                    
-                    # For synchronous requests (job ID starts with 'sync-'), don't poll
-                    # The job will complete within the original request timeout
-                    if job_id.startswith("sync-"):
-                        print("Synchronous job detected - waiting for completion within original request...")
-                        # The job should complete and return results within the original POST request
-                        # If we get here, it means the serverless function had an issue returning results
-                        raise RuntimeError(f"Synchronous job {job_id} failed to return results. Check serverless function logs.")
-                    else:
-                        # For asynchronous requests, poll for completion
-                        result = self.poll_for_completion(job_id, headers)
-                else:
-                    raise RuntimeError("Job started but no ID returned for polling")
+            # All requests are treated as synchronous - no polling needed
+            # The response should contain the completed results
             
             # Parse the response to extract frame data (new schema)
             if ("output" in result and 
