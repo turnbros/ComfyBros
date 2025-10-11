@@ -28,10 +28,19 @@ app.registerExtension({
         const container = document.createElement("div");
         container.style.padding = "10px";
 
-        const list = document.createElement("div");
-        container.appendChild(list);
+        // Create buttons container (created once)
+        const buttonsContainer = document.createElement("div");
+        buttonsContainer.style.marginBottom = "20px";
 
-        // Render existing instances
+        // Create list container (for instances)
+        const list = document.createElement("div");
+
+        // Persist changes to the hidden setting
+        function save() {
+          app.extensionManager.setting.set("serverlessConfig.instances", instances);
+        }
+
+        // Render existing instances (only affects list container)
         function redraw() {
           list.innerHTML = "";
           instances.forEach((instance, idx) => {
@@ -146,12 +155,7 @@ app.registerExtension({
           });
         }
 
-        // Persist changes to the hidden setting
-        function save() {
-          app.extensionManager.setting.set("serverlessConfig.instances", instances);
-        }
-
-        // "Add Instance" button
+        // Create buttons once (they never get recreated)
         const add = document.createElement("button");
         add.textContent = "Add New Instance";
         add.style.backgroundColor = "#4CAF50";
@@ -160,7 +164,7 @@ app.registerExtension({
         add.style.padding = "10px 20px";
         add.style.borderRadius = "5px";
         add.style.cursor = "pointer";
-        add.style.marginBottom = "10px";
+        add.style.marginRight = "10px";
         add.onclick = () => {
           instances.push({ 
             name: "", 
@@ -171,9 +175,7 @@ app.registerExtension({
           save();
           redraw();
         };
-        container.appendChild(add);
 
-        // Export configurations button
         const exportBtn = document.createElement("button");
         exportBtn.textContent = "Export Configurations";
         exportBtn.style.backgroundColor = "#2196F3";
@@ -182,7 +184,7 @@ app.registerExtension({
         exportBtn.style.padding = "10px 20px";
         exportBtn.style.borderRadius = "5px";
         exportBtn.style.cursor = "pointer";
-        exportBtn.style.marginLeft = "10px";
+        exportBtn.style.marginRight = "10px";
         exportBtn.onclick = () => {
           const dataStr = JSON.stringify(instances, null, 2);
           const dataBlob = new Blob([dataStr], {type: 'application/json'});
@@ -193,9 +195,7 @@ app.registerExtension({
           link.click();
           URL.revokeObjectURL(url);
         };
-        container.appendChild(exportBtn);
 
-        // Import configurations button
         const importBtn = document.createElement("button");
         importBtn.textContent = "Import Configurations";
         importBtn.style.backgroundColor = "#FF9800";
@@ -204,7 +204,6 @@ app.registerExtension({
         importBtn.style.padding = "10px 20px";
         importBtn.style.borderRadius = "5px";
         importBtn.style.cursor = "pointer";
-        importBtn.style.marginLeft = "10px";
         importBtn.onclick = () => {
           const input = document.createElement('input');
           input.type = 'file';
@@ -234,8 +233,17 @@ app.registerExtension({
           };
           input.click();
         };
-        container.appendChild(importBtn);
 
+        // Add buttons to buttons container (once)
+        buttonsContainer.appendChild(add);
+        buttonsContainer.appendChild(exportBtn);
+        buttonsContainer.appendChild(importBtn);
+
+        // Add containers to main container (once)
+        container.appendChild(buttonsContainer);
+        container.appendChild(list);
+
+        // Initial render
         redraw();
         el.appendChild(container);
       }
