@@ -299,7 +299,7 @@ class WAN22GenerateVideo:
             if os.path.exists(settings_file):
                 with open(settings_file, 'r') as f:
                     settings = json.load(f)
-                    required_keys = ["serverlessConfig.offloadBucket.cloudflare_account_id", "serverlessConfig.offloadBucket.name", "serverlessConfig.offloadBucket.secret_key_id", "secret_key"]
+                    required_keys = ["serverlessConfig.offloadBucket.cloudflare_account_id", "serverlessConfig.offloadBucket.name", "serverlessConfig.offloadBucket.secret_key_id", "serverlessConfig.offloadBucket.secret_key"]
                     if all(key in settings for key in required_keys):
                         return {
                             "account_id": settings["serverlessConfig.offloadBucket.cloudflare_account_id"],
@@ -308,7 +308,7 @@ class WAN22GenerateVideo:
                             "secret_access_key": settings["serverlessConfig.offloadBucket.secret_key"]
                         }
                     else:
-                        missing_keys = [key for key in required_keys if key not in bucket_config]
+                        missing_keys = [key for key in required_keys if key not in settings]
                         raise RuntimeError(f"Missing R2 configuration keys: {missing_keys}")
         except Exception as e:
             raise RuntimeError(f"Error loading R2 configuration: {str(e)}")
