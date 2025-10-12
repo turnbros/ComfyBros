@@ -120,7 +120,7 @@ class GenerateImage:
         
         try:
             # Make the request to RunPod
-            result = self.send_request(self, endpoint, headers, payload)
+            result = self.send_request(endpoint, headers, payload)
 
             print(result)
             print(f"Full response from RunPod:{dir(result)}")
