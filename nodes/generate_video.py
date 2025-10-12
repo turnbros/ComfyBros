@@ -457,8 +457,8 @@ class WAN22GenerateVideo:
             # 900-second timeout for video generation
             timeout = 900
             start_time = time.time()
-            while (result["output"]["status"] == "IN_QUEUE"
-                   or result["output"]["status"] == "IN_PROGRESS"):
+            while (result["status"] == "IN_QUEUE"
+                   or result["status"] == "IN_PROGRESS"):
 
                 if time.time() - start_time > timeout:
                     raise RuntimeError("Request timed out waiting for video generation")
