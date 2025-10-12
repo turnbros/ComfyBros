@@ -226,7 +226,8 @@ class ImageToImage:
             response.raise_for_status()
             result = response.json()
 
-            print(f"Full response from RunPod:{vars(result)}")
+            print(result)
+            print(f"Full response from RunPod:{dir(result)}")
 
             """
               "delayTime": 707,
