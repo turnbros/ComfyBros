@@ -294,12 +294,15 @@ class WAN22GenerateVideo:
         """Get R2 configuration from settings"""
         try:
             settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
-            
+            print(f"Printing settings file path for R2 config: {settings_file}")
+
             if os.path.exists(settings_file):
                 with open(settings_file, 'r') as f:
                     settings = json.load(f)
+                    print("Loaded settings for R2 config")
+                    print(settings)
                     bucket_config = settings.get("serverlessConfig", {}).get("offloadBucket", {})
-                    
+                    print(f"Bucket config: {bucket_config}")
                     required_keys = ["cloudflare_account_id", "name", "secret_key_id", "secret_key"]
                     if all(key in bucket_config for key in required_keys):
                         return {
