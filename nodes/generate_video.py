@@ -299,17 +299,13 @@ class WAN22GenerateVideo:
             if os.path.exists(settings_file):
                 with open(settings_file, 'r') as f:
                     settings = json.load(f)
-                    print("Loaded settings for R2 config")
-                    print(settings)
-                    bucket_config = settings.get("serverlessConfig", {}).get("offloadBucket", {})
-                    print(f"Bucket config: {bucket_config}")
-                    required_keys = ["cloudflare_account_id", "name", "secret_key_id", "secret_key"]
-                    if all(key in bucket_config for key in required_keys):
+                    required_keys = ["serverlessConfig.offloadBucket.cloudflare_account_id", "serverlessConfig.offloadBucket.name", "serverlessConfig.offloadBucket.secret_key_id", "secret_key"]
+                    if all(key in settings for key in required_keys):
                         return {
-                            "account_id": bucket_config["cloudflare_account_id"],
-                            "bucket_name": bucket_config["name"],
-                            "access_key_id": bucket_config["secret_key_id"],
-                            "secret_access_key": bucket_config["secret_key"]
+                            "account_id": settings["serverlessConfig.offloadBucket.cloudflare_account_id"],
+                            "bucket_name": settings["serverlessConfig.offloadBucket.name"],
+                            "access_key_id": settings["serverlessConfig.offloadBucket.secret_key_id"],
+                            "secret_access_key": settings["serverlessConfig.offloadBucket.secret_key"]
                         }
                     else:
                         missing_keys = [key for key in required_keys if key not in bucket_config]
