@@ -448,9 +448,25 @@ class WAN22GenerateVideo:
         
         try:
             # Make the request to RunPod with extended timeout for video generation
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=900)
+            response = requests.post(endpoint, headers=headers, json=payload)
             response.raise_for_status()
-            
+            result = response.json()
+
+            # 900-second timeout for video generation
+            timeout = 900
+            start_time = time.time()
+            while (result["output"]["status"] == "IN_QUEUE"
+                   or result["output"]["status"] == "IN_PROGRESS"):
+
+                if time.time() - start_time > timeout:
+                    raise RuntimeError("Request timed out waiting for video generation")
+
+                print("Video generation in queue, waiting 5 seconds...")
+                time.sleep(2)
+
+            # Poll the endpoint again to check status
+            response = requests.post(endpoint, headers=headers, json=payload)
+            response.raise_for_status()
             result = response.json()
             
             # All requests are treated as synchronous - no polling needed
