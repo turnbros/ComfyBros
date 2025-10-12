@@ -5,8 +5,7 @@ import io
 import torch
 import random
 import re
-import os
-import folder_paths
+from ._instance_utils import instance_config, instance_names
 from PIL import Image
 from typing import Tuple, Optional
 
@@ -70,28 +69,14 @@ class OllamaConverse:
     @classmethod
     def get_instance_names(cls):
         """Get list of configured serverless instance names"""
-        try:
-            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
-
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    settings = json.load(f)
-                    instances = settings.get("serverlessConfig.instances", [])
-                    if instances:
-                        instance_names = [instance.get("name", f"Instance {i+1}") for i, instance in enumerate(instances) if instance.get("name")]
-                        if instance_names:
-                            return instance_names
-                                
-        except Exception as e:
-            print(f"Error reading instance configuration: {e}")
-        return ["No instances configured"]
+        return instance_names()
 
     @classmethod
     def INPUT_TYPES(cls):
-        instance_names = cls.get_instance_names()
+        names = cls.get_instance_names()
         return {
             "required": {
-                "instance_name": (instance_names, {"default": instance_names[0] if instance_names else "No instances configured"}),
+                "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
@@ -132,27 +117,7 @@ class OllamaConverse:
     
     def get_instance_config(self, instance_name: str) -> dict:
         """Get the configuration for the specified instance"""
-        try:
-            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
-
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    settings = json.load(f)
-                    instances = settings.get("serverlessConfig.instances", [])
-                    if instances:
-                        for instance in instances:
-                            if instance.get("name") == instance_name:
-                                return {
-                                    "endpoint": instance.get("endpoint", ""),
-                                    "headers": {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': f'Bearer {instance.get("auth_token", "")}'
-                                    }
-                                }
-        except Exception as e:
-            raise RuntimeError(f"Error loading instance configuration: {str(e)}")
-        
-        raise RuntimeError(f"Instance '{instance_name}' not found in configuration")
+        return instance_config(instance_name)
 
     def generate_response(self, instance_name: str, prompt: str, max_tokens: int, 
                          temperature: float, seed: int, context: Optional[dict] = None,
