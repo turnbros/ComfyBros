@@ -8,6 +8,7 @@ import random
 import tempfile
 import time
 import subprocess
+import zipfile
 from PIL import Image
 from typing import Tuple, List
 import folder_paths
@@ -289,6 +290,110 @@ class WAN22GenerateVideo:
         """Get the configuration for the specified instance"""
         return instance_config(instance_name)
 
+    def get_r2_config(self) -> dict:
+        """Get R2 configuration from settings"""
+        try:
+            settings_file = os.path.join(folder_paths.base_path, "user", "default", "comfy.settings.json")
+            
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    settings = json.load(f)
+                    bucket_config = settings.get("serverlessConfig", {}).get("offloadBucket", {})
+                    
+                    required_keys = ["cloudflare_account_id", "name", "secret_key_id", "secret_key"]
+                    if all(key in bucket_config for key in required_keys):
+                        return {
+                            "account_id": bucket_config["cloudflare_account_id"],
+                            "bucket_name": bucket_config["name"],
+                            "access_key_id": bucket_config["secret_key_id"],
+                            "secret_access_key": bucket_config["secret_key"]
+                        }
+                    else:
+                        missing_keys = [key for key in required_keys if key not in bucket_config]
+                        raise RuntimeError(f"Missing R2 configuration keys: {missing_keys}")
+        except Exception as e:
+            raise RuntimeError(f"Error loading R2 configuration: {str(e)}")
+        
+        raise RuntimeError("R2 configuration not found in settings")
+
+    def download_r2_archive(self, bucket: str, key: str) -> bytes:
+        """Download ZIP archive from Cloudflare R2"""
+        try:
+            r2_config = self.get_r2_config()
+            
+            # Construct R2 endpoint URL
+            # Cloudflare R2 is S3-compatible, so we use the S3 API format
+            account_id = r2_config["account_id"]
+            endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+            
+            # Construct the object URL
+            object_url = f"{endpoint_url}/{bucket}/{key}"
+            
+            # For now, try a simple GET request to the public URL
+            # If the bucket is private, we'd need to implement S3 signature authentication
+            response = requests.get(object_url, timeout=300)
+            response.raise_for_status()
+            
+            return response.content
+            
+        except Exception as e:
+            raise RuntimeError(f"Error downloading archive from R2: {str(e)}")
+
+    def extract_frames_from_zip(self, zip_data: bytes) -> List[dict]:
+        """Extract frame images from ZIP archive and convert to frame data"""
+        try:
+            frames = []
+            
+            # Create a temporary directory for extraction
+            temp_dir = tempfile.mkdtemp(prefix='r2_frames_')
+            
+            try:
+                # Extract ZIP archive
+                with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as zip_file:
+                    zip_file.extractall(temp_dir)
+                
+                # Get all image files and sort them
+                image_files = []
+                for filename in os.listdir(temp_dir):
+                    if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        image_files.append(filename)
+                
+                # Sort by frame number if possible, otherwise alphabetically
+                try:
+                    # Try to sort by numeric frame number in filename
+                    image_files.sort(key=lambda x: int(''.join(filter(str.isdigit, x))))
+                except:
+                    # Fall back to alphabetical sort
+                    image_files.sort()
+                
+                # Convert each image to base64
+                for i, filename in enumerate(image_files):
+                    file_path = os.path.join(temp_dir, filename)
+                    
+                    with open(file_path, 'rb') as f:
+                        image_data = f.read()
+                        base64_data = base64.b64encode(image_data).decode('utf-8')
+                    
+                    frames.append({
+                        "data": base64_data,
+                        "format": "PNG",
+                        "frame_number": i
+                    })
+                
+            finally:
+                # Clean up temporary directory
+                try:
+                    for filename in os.listdir(temp_dir):
+                        os.remove(os.path.join(temp_dir, filename))
+                    os.rmdir(temp_dir)
+                except:
+                    pass
+            
+            return frames
+            
+        except Exception as e:
+            raise RuntimeError(f"Error extracting frames from ZIP: {str(e)}")
+
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
@@ -337,38 +442,83 @@ class WAN22GenerateVideo:
             # All requests are treated as synchronous - no polling needed
             # The response should contain the completed results
             
-            # Parse the response to extract frame data (new schema)
+            # Parse the response to extract frame data (new R2 ZIP archive schema)
             if ("output" in result and 
                 "result" in result["output"] and 
-                "frames" in result["output"]["result"] and 
-                len(result["output"]["result"]["frames"]) > 0):
+                "frames" in result["output"]["result"]):
                 
-                # Get frames from the new schema
-                frames = result["output"]["result"]["frames"]
-                frame_count = result["output"]["result"].get("frame_count", len(frames))
+                frames_info = result["output"]["result"]["frames"]
+                frame_count = result["output"]["result"].get("frame_count", 0)
                 
-                print(f"Converting {frame_count} frames to tensor batch...")
-                
-                # Convert frames to tensor batch
-                frame_tensors = self.frames_to_tensor_batch(frames)
-                
-                # Create metadata string with generation parameters
-                metadata = {
-                    "frame_count": frame_count,
-                    "tensor_shape": list(frame_tensors.shape),
-                    "parameters": result["output"]["result"].get("parameters", {}),
-                    "execution_time": result.get("executionTime", 0),
-                    "delay_time": result.get("delayTime", 0),
-                    "status": result["output"]["result"].get("status", "unknown"),
-                    "video_info": {
-                        "width": width,
-                        "height": height,
-                        "length": length,
-                        "fps": fps
+                # Check if this is the new R2 ZIP archive format
+                if isinstance(frames_info, dict) and "bucket" in frames_info and "key" in frames_info:
+                    print(f"Downloading ZIP archive with {frame_count} frames from R2...")
+                    
+                    # Download ZIP archive from R2
+                    bucket = frames_info["bucket"]
+                    key = frames_info["key"]
+                    zip_data = self.download_r2_archive(bucket, key)
+                    
+                    print(f"Extracting {frame_count} frames from ZIP archive...")
+                    
+                    # Extract frames from ZIP
+                    frames = self.extract_frames_from_zip(zip_data)
+                    
+                    print(f"Converting {len(frames)} frames to tensor batch...")
+                    
+                    # Convert frames to tensor batch
+                    frame_tensors = self.frames_to_tensor_batch(frames)
+                    
+                    # Create metadata string with generation parameters
+                    metadata = {
+                        "frame_count": frame_count,
+                        "tensor_shape": list(frame_tensors.shape),
+                        "parameters": result["output"]["result"].get("parameters", {}),
+                        "execution_time": result.get("executionTime", 0),
+                        "delay_time": result.get("delayTime", 0),
+                        "status": result["output"]["result"].get("status", "unknown"),
+                        "r2_info": {
+                            "bucket": bucket,
+                            "key": key,
+                            "filename": frames_info.get("filename", "unknown"),
+                            "size_bytes": frames_info.get("size_bytes", 0)
+                        },
+                        "video_info": {
+                            "width": width,
+                            "height": height,
+                            "length": length,
+                            "fps": fps
+                        }
                     }
-                }
+                    
+                    return (frame_tensors, json.dumps(metadata, indent=2))
                 
-                return (frame_tensors, json.dumps(metadata, indent=2))
+                # Fallback: old direct frames format (list of frame objects)
+                elif isinstance(frames_info, list) and len(frames_info) > 0:
+                    print(f"Processing {len(frames_info)} frames from direct format...")
+                    
+                    # Convert frames to tensor batch
+                    frame_tensors = self.frames_to_tensor_batch(frames_info)
+                    
+                    # Create metadata string with generation parameters
+                    metadata = {
+                        "frame_count": len(frames_info),
+                        "tensor_shape": list(frame_tensors.shape),
+                        "parameters": result["output"]["result"].get("parameters", {}),
+                        "execution_time": result.get("executionTime", 0),
+                        "delay_time": result.get("delayTime", 0),
+                        "status": result["output"]["result"].get("status", "unknown"),
+                        "video_info": {
+                            "width": width,
+                            "height": height,
+                            "length": length,
+                            "fps": fps
+                        }
+                    }
+                    
+                    return (frame_tensors, json.dumps(metadata, indent=2))
+                else:
+                    raise RuntimeError("Invalid frames format in response")
                 
             # Fallback: try old schema for backwards compatibility
             elif ("output" in result and 
