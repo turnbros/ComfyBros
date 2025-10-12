@@ -226,17 +226,6 @@ class ImageToImage:
             response.raise_for_status()
             result = response.json()
 
-            print(result)
-            print(f"Full response from RunPod:{dir(result)}")
-
-            """
-              "delayTime": 707,
-  "id": "sync-853a97da-3d7f-4659-96b4-4443a603c21b-u1",
-  "status": "IN_PROGRESS",
-  "workerId": "ljaic2fgukybe3"
-}
-            """
-
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(f"Request error: {exc}") from exc
         except json.JSONDecodeError as exc:

@@ -96,7 +96,10 @@ class GenerateImage:
             response.raise_for_status()
             
             result = response.json()
-            
+
+            print(result)
+            print(f"Full response from RunPod:{dir(result)}")
+
             # Parse the response to extract image data
             if ("output" in result and 
                 "result" in result["output"] and 
