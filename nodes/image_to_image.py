@@ -222,7 +222,7 @@ class ImageToImage:
         }
 
         try:
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=300)
+            response = requests.post(endpoint, headers=headers, json=payload)
             response.raise_for_status()
             result = response.json()
         except requests.exceptions.RequestException as exc:
