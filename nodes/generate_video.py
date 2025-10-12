@@ -9,6 +9,8 @@ import tempfile
 import time
 import subprocess
 import zipfile
+import boto3
+from botocore.exceptions import ClientError
 from PIL import Image
 from typing import Tuple, List
 import folder_paths
@@ -316,25 +318,38 @@ class WAN22GenerateVideo:
         raise RuntimeError("R2 configuration not found in settings")
 
     def download_r2_archive(self, bucket: str, key: str) -> bytes:
-        """Download ZIP archive from Cloudflare R2"""
+        """Download ZIP archive from Cloudflare R2 using boto3"""
         try:
             r2_config = self.get_r2_config()
             
-            # Construct R2 endpoint URL
-            # Cloudflare R2 is S3-compatible, so we use the S3 API format
+            # Create S3 client configured for Cloudflare R2
             account_id = r2_config["account_id"]
             endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
             
-            # Construct the object URL
-            object_url = f"{endpoint_url}/{bucket}/{key}"
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint_url,
+                aws_access_key_id=r2_config["access_key_id"],
+                aws_secret_access_key=r2_config["secret_access_key"],
+                region_name='auto'  # R2 uses 'auto' as the region
+            )
             
-            # For now, try a simple GET request to the public URL
-            # If the bucket is private, we'd need to implement S3 signature authentication
-            response = requests.get(object_url, timeout=300)
-            response.raise_for_status()
+            print(f"Downloading {key} from R2 bucket {bucket}...")
             
-            return response.content
+            # Download the object
+            response = s3_client.get_object(Bucket=bucket, Key=key)
             
+            # Read the content
+            content = response['Body'].read()
+            
+            print(f"Downloaded {len(content)} bytes from R2")
+            
+            return content
+            
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            raise RuntimeError(f"R2 client error ({error_code}): {error_message}")
         except Exception as e:
             raise RuntimeError(f"Error downloading archive from R2: {str(e)}")
 
