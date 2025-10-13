@@ -8,7 +8,7 @@ import json
 import os
 import random
 from typing import Tuple, Optional, Any
-
+from ._runpod_utils import send_request
 import requests
 import torch
 from PIL import Image
@@ -229,9 +229,11 @@ class ImageToImage:
         }
 
         try:
-            response = requests.post(endpoint, headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
+            # response = requests.post(endpoint, headers=headers, json=payload)
+            # response.raise_for_status()
+            # result = response.json()
+
+            result = send_request(endpoint, headers, payload)
 
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(f"Request error: {exc}") from exc
