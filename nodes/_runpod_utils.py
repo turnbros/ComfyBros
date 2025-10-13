@@ -1,0 +1,30 @@
+import requests
+import time
+
+def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
+    """Send a POST request to the RunPod endpoint and return the JSON response."""
+    # Make the request to RunPod with extended timeout for video generation
+    response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
+    response.raise_for_status()
+    result = response.json()
+
+    job_id = result["id"]
+
+    # 900-second timeout for video generation
+    timeout = 900
+    start_time = time.time()
+    while (result["status"] == "IN_QUEUE"
+           or result["status"] == "IN_PROGRESS"):
+
+        if time.time() - start_time > timeout:
+            raise RuntimeError("Request timed out waiting for video generation")
+
+        print("Video generation in queue, waiting 5 seconds...")
+        time.sleep(2)
+
+        # Poll the endpoint again to check status
+        response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
+
+    return result

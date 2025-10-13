@@ -3,8 +3,7 @@ import json
 import base64
 import io
 import torch
-import random
-import re
+from ._runpod_utils import send_request
 from ._instance_utils import instance_config, instance_names
 from PIL import Image
 from typing import Tuple, Optional
@@ -218,10 +217,11 @@ class OllamaConverse:
         }
         
         try:
-            response = requests.post(endpoint_url, headers=headers, json=payload, timeout=read_timeout)
-            response.raise_for_status()
-            
-            result = response.json()
+            # response = requests.post(endpoint_url, headers=headers, json=payload, timeout=read_timeout)
+            # response.raise_for_status()
+            # result = response.json()
+
+            result = send_request(endpoint_url, headers=headers, payload=payload)
             
             assistant_response = None
             
