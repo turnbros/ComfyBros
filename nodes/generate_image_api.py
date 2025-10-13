@@ -48,17 +48,19 @@ class GenerateImageAPI:
     
     def base64_to_tensor(self, base64_string: str) -> torch.Tensor:
         """Convert base64 string to torch tensor for ComfyUI"""
+        import numpy as np
+        
         image_bytes = base64.b64decode(base64_string)
         pil_image = Image.open(io.BytesIO(image_bytes))
         
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
         
-        width, height = pil_image.size
-        pixel_data = list(pil_image.getdata())
+        # Convert PIL to numpy array, then to tensor
+        image_array = np.array(pil_image, dtype=np.float32) / 255.0
+        image_tensor = torch.from_numpy(image_array)
         
-        image_tensor = torch.tensor(pixel_data, dtype=torch.float32)
-        image_tensor = image_tensor.view(height, width, 3) / 255.0
+        # Add batch dimension [H, W, C] -> [1, H, W, C]
         image_tensor = image_tensor.unsqueeze(0)
         
         return image_tensor
