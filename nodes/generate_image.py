@@ -44,6 +44,7 @@ class GenerateImage:
     RETURN_NAMES = ("image", "metadata")
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Image Generation"
+    API_NODE = True
     
     def base64_to_tensor(self, base64_string: str) -> torch.Tensor:
         """Convert base64 string to torch tensor for ComfyUI"""
