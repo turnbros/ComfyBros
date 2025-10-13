@@ -88,6 +88,8 @@ class GenerateImage:
             response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
             response.raise_for_status()
             result = response.json()
+        
+        return result
 
     def generate(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
