@@ -30,5 +30,5 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
         result = response.json()
         print(f"Job {job_id} Status: {result['status']}")
 
-    print("Video generation complete!")
+    print(f"Video generation job {job_id} complete!")
     return result
