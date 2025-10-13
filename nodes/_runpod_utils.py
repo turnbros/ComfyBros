@@ -19,7 +19,8 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
         if time.time() - start_time > timeout:
             raise RuntimeError("Request timed out waiting for video generation")
 
-        print("Video generation in queue, waiting 5 seconds...")
+        print("Video generation in queue, waiting 2 seconds...")
+        print(result["status"])
         time.sleep(2)
 
         # Poll the endpoint again to check status
