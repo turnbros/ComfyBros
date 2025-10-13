@@ -61,8 +61,15 @@ class ImageToImage:
                     "INT",
                     {"default": -1, "min": -1, "max": 2**31 - 1},
                 ),
-                "sampler_name": ("STRING", {"default": "euler"}),
-                "scheduler": ("STRING", {"default": "normal"}),
+                "sampler_name": ([
+                    "euler", "euler_ancestral", "heun", "heunpp2", "dpm_2", "dpm_2_ancestral",
+                    "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
+                    "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", 
+                    "ddpm", "lcm", "ddim", "uni_pc", "uni_pc_bh2"
+                ], {"default": "euler"}),
+                "scheduler": ([
+                    "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
+                ], {"default": "normal"}),
                 "denoise": (
                     "FLOAT",
                     {"default": 0.7, "min": 0.0, "max": 1.0, "step": 0.01},

@@ -36,8 +36,15 @@ class WAN22GenerateVideo:
                 "steps": ("INT", {"default": 4, "min": 1, "max": 150}),
                 "cfg": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 30.0, "step": 0.1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
-                "sampler_name": ("STRING", {"default": "euler"}),
-                "scheduler": ("STRING", {"default": "simple"}),
+                "sampler_name": ([
+                    "euler", "euler_ancestral", "heun", "heunpp2", "dpm_2", "dpm_2_ancestral",
+                    "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
+                    "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", 
+                    "ddpm", "lcm", "ddim", "uni_pc", "uni_pc_bh2"
+                ], {"default": "euler"}),
+                "scheduler": ([
+                    "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
+                ], {"default": "simple"}),
             },
             "optional": {
                 "input_image_string": ("STRING", {"multiline": True, "default": ""}),
