@@ -116,9 +116,6 @@ class GenerateImageAPI:
         try:
             result = self.send_request(endpoint, headers, payload)
 
-            print(result)
-            print(f"Full response from RunPod:{dir(result)}")
-
             if (("output" in result and 
                 "result" in result["output"] and 
                 "images" in result["output"]["result"] and 
