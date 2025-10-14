@@ -9,6 +9,7 @@ from .endpoint_config import *
 from .text_storage import *
 from .json_nodes import *
 from .math_nodes import *
+from .image_batch_utils import *
 
 NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConnection": OllamaConnection,
@@ -29,6 +30,9 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_IntegerMath": IntegerMath,
     "ComfyBros_IntegerCompare": IntegerCompare,
     "ComfyBros_IntegerConstant": IntegerConstant,
+    "ComfyBros_ImageBatchCombiner": ImageBatchCombiner,
+    "ComfyBros_ImageBatchToGIF": ImageBatchToGIF,
+    "ComfyBros_ImageBatchSplitter": ImageBatchSplitter,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -50,4 +54,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_IntegerMath": "Integer Math",
     "ComfyBros_IntegerCompare": "Integer Compare",
     "ComfyBros_IntegerConstant": "Integer Constant",
+    "ComfyBros_ImageBatchCombiner": "Image Batch Combiner",
+    "ComfyBros_ImageBatchToGIF": "Image Batch to GIF",
+    "ComfyBros_ImageBatchSplitter": "Image Batch Splitter",
 }
