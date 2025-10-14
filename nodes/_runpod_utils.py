@@ -30,7 +30,7 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
             time.sleep(4)
 
             try:
-                response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
+                response = requests.get(f"{endpoint}/status/{job_id}", headers=headers)
                 response.raise_for_status()
                 result = response.json()
             except Exception as e:
@@ -50,8 +50,8 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
         time.sleep(4)
 
         # Try one final time to get the job status
-        response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
-        # response.raise_for_status()
+        response = requests.get(f"{endpoint}/status/{job_id}", headers=headers)
+        response.raise_for_status()
         result = response.json()
         print(f"Job {job_id} Status: {result['status']}")
         print(result)
