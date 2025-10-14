@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from typing import Tuple
 from ._instance_utils import instance_config, instance_names
+from ._runpod_utils import send_request
 
 
 class GenerateImage:
@@ -71,33 +72,33 @@ class GenerateImage:
         
         return image_tensor
 
-    def send_request(self, endpoint: str, headers: dict, payload: dict) -> dict:
-        """Send a POST request to the RunPod endpoint and return the JSON response."""
-        # Make the request to RunPod with extended timeout for video generation
-        response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
-
-        job_id = result["id"]
-
-        # 900-second timeout for video generation
-        timeout = 900
-        start_time = time.time()
-        while (result["status"] == "IN_QUEUE"
-               or result["status"] == "IN_PROGRESS"):
-
-            if time.time() - start_time > timeout:
-                raise RuntimeError("Request timed out waiting for video generation")
-
-            print("Video generation in queue, waiting 5 seconds...")
-            time.sleep(2)
-
-            # Poll the endpoint again to check status
-            response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-        
-        return result
+    # def send_request(self, endpoint: str, headers: dict, payload: dict) -> dict:
+    #     """Send a POST request to the RunPod endpoint and return the JSON response."""
+    #     # Make the request to RunPod with extended timeout for video generation
+    #     response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
+    #     response.raise_for_status()
+    #     result = response.json()
+    #
+    #     job_id = result["id"]
+    #
+    #     # 900-second timeout for video generation
+    #     timeout = 900
+    #     start_time = time.time()
+    #     while (result["status"] == "IN_QUEUE"
+    #            or result["status"] == "IN_PROGRESS"):
+    #
+    #         if time.time() - start_time > timeout:
+    #             raise RuntimeError("Request timed out waiting for video generation")
+    #
+    #         print("Video generation in queue, waiting 5 seconds...")
+    #         time.sleep(2)
+    #
+    #         # Poll the endpoint again to check status
+    #         response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
+    #         response.raise_for_status()
+    #         result = response.json()
+    #
+    #     return result
 
     def generate(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
@@ -130,7 +131,7 @@ class GenerateImage:
         
         try:
             # Make the request to RunPod
-            result = self.send_request(endpoint, headers, payload)
+            result = send_request(endpoint, headers, payload)
 
             # Parse the response to extract image data
             if ("output" in result and 

@@ -1,4 +1,3 @@
-import requests
 import json
 import base64
 import io
@@ -15,6 +14,7 @@ from PIL import Image
 from typing import Tuple, List
 import folder_paths
 from ._instance_utils import instance_config, instance_names
+from ._runpod_utils import send_request
 
 
 class WAN22GenerateVideo:
@@ -454,32 +454,8 @@ class WAN22GenerateVideo:
         }
         
         try:
-            # Make the request to RunPod with extended timeout for video generation
-            response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-
-            job_id = result["id"]
-
-            # 900-second timeout for video generation
-            timeout = 900
-            start_time = time.time()
-            while (result["status"] == "IN_QUEUE"
-                   or result["status"] == "IN_PROGRESS"):
-
-                if time.time() - start_time > timeout:
-                    raise RuntimeError("Request timed out waiting for video generation")
-
-                print("Video generation in queue, waiting 5 seconds...")
-                time.sleep(2)
-
-                # Poll the endpoint again to check status
-                response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
-                response.raise_for_status()
-                result = response.json()
-            
-            # All requests are treated as synchronous - no polling needed
-            # The response should contain the completed results
+            # Poll the endpoint again to check status
+            result = send_request(endpoint, headers, payload)
             
             # Parse the response to extract frame data (new R2 ZIP archive schema)
             if ("output" in result and 
@@ -575,10 +551,6 @@ class WAN22GenerateVideo:
                     raise RuntimeError("No video data found in response")
             else:
                 raise RuntimeError(f"Unexpected response structure: {json.dumps(result, indent=2)}")
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Request error: {str(e)}")
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"JSON decode error: {str(e)}")
+
         except Exception as e:
             raise RuntimeError(f"Unexpected error: {str(e)}")

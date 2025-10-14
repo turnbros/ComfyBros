@@ -229,9 +229,6 @@ class ImageToImage:
         }
 
         try:
-            # response = requests.post(endpoint, headers=headers, json=payload)
-            # response.raise_for_status()
-            # result = response.json()
 
             result = send_request(endpoint, headers, payload)
 
