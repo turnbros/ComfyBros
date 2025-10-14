@@ -13,6 +13,9 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
 
     print(f"Job {job_id} Status: {result['status']}")
 
+    max_retries = 5
+    retries = 0
+
     try:
         # 900-second timeout for video generation
         timeout = 900
@@ -26,10 +29,22 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
             print("Video generation in queue, waiting 4 seconds...")
             time.sleep(4)
 
-            # Poll the endpoint again to check status
-            response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
-            # response.raise_for_status()
-            result = response.json()
+            try:
+                response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
+                response.raise_for_status()
+                result = response.json()
+            except Exception as e:
+                if retries < max_retries:
+                    retries += 1
+                    print(f"Request error: {e}")
+                    print(f"Exception encountered. Retrying {retries}/{max_retries}...")
+                    time.sleep(4)
+                    continue
+                else:
+                    raise RuntimeError("Max retries reached after ProtocolError") from e
+
+            # Reset retries after a successful request
+            retries = 0
 
     except Exception:
         time.sleep(4)
