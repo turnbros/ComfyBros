@@ -23,15 +23,17 @@ def send_request(endpoint: str, headers: dict, payload: dict) -> dict:
             if time.time() - start_time > timeout:
                 raise RuntimeError("Request timed out waiting for video generation")
 
-            print("Video generation in queue, waiting 2 seconds...")
-            time.sleep(2)
+            print("Video generation in queue, waiting 4 seconds...")
+            time.sleep(4)
 
             # Poll the endpoint again to check status
             response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
             # response.raise_for_status()
             result = response.json()
 
-    except ProtocolError:
+    except Exception:
+        time.sleep(4)
+
         # Try one final time to get the job status
         response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
         # response.raise_for_status()
