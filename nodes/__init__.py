@@ -8,6 +8,7 @@ from .lora_discovery import *
 from .endpoint_config import *
 from .text_storage import *
 from .json_nodes import *
+from .math_nodes import *
 
 NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConnection": OllamaConnection,
@@ -25,6 +26,9 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_TextConcatenate": TextConcatenate,
     "ComfyBros_JsonParse": JsonParseNode,
     "ComfyBros_DictGet": DictGetNode,
+    "ComfyBros_IntegerMath": IntegerMath,
+    "ComfyBros_IntegerCompare": IntegerCompare,
+    "ComfyBros_IntegerConstant": IntegerConstant,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -43,4 +47,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_TextConcatenate": "Text Concatenate",
     "ComfyBros_JsonParse": "JSON Parse",
     "ComfyBros_DictGet": "Dict Get",
+    "ComfyBros_IntegerMath": "Integer Math",
+    "ComfyBros_IntegerCompare": "Integer Compare",
+    "ComfyBros_IntegerConstant": "Integer Constant",
 }
