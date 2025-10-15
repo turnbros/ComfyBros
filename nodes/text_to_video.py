@@ -228,7 +228,8 @@ class TextToVideo:
                     "num_inference_steps": num_inference_steps,
                     "guidance_scale": guidance_scale,
                     "seed": seed,
-                    "batch_size": batch_size
+                    "batch_size": batch_size,
+                    "model_path": "/runpod-volume/shared_models"
                 }
             }
         }
