@@ -4,6 +4,7 @@ from .generate_image import *
 from .generate_image_api import *
 from .image_to_image import *
 from .generate_video import *
+from .text_to_video import *
 from .lora_discovery import *
 from .endpoint_config import *
 from .text_storage import *
@@ -20,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_GenerateImageAPI": GenerateImageAPI,
     "ComfyBros_ImageToImage": ImageToImage,
     "ComfyBros_WAN22GenerateVideo": WAN22GenerateVideo,
+    "ComfyBros_TextToVideo": TextToVideo,
     "ComfyBros_LoraDiscovery": LoraDiscovery,
     "ComfyBros_EndpointConfiguration": EndpointConfiguration,
     "ComfyBros_TextStorage": TextStorage,
@@ -44,6 +46,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_GenerateImageAPI": "Generate Image API",
     "ComfyBros_ImageToImage": "Image To Image",
     "ComfyBros_WAN22GenerateVideo": "WAN22 Generate Video",
+    "ComfyBros_TextToVideo": "Text to Video",
     "ComfyBros_LoraDiscovery": "LORA Discovery",
     "ComfyBros_EndpointConfiguration": "Endpoint Configuration",
     "ComfyBros_TextStorage": "Text Storage",
