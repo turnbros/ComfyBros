@@ -76,6 +76,7 @@ class OllamaConverse:
         return {
             "required": {
                 "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
+                "model": ("STRING", {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
@@ -118,7 +119,7 @@ class OllamaConverse:
         """Get the configuration for the specified instance"""
         return instance_config(instance_name)
 
-    def generate_response(self, instance_name: str, prompt: str, max_tokens: int, 
+    def generate_response(self, instance_name: str, model: str, prompt: str, max_tokens: int,
                          temperature: float, seed: int, context: Optional[dict] = None,
                          image: Optional[torch.Tensor] = None, system_prompt: str = "", 
                          read_timeout: int = 240) -> Tuple[str, dict, dict]:
@@ -186,7 +187,7 @@ class OllamaConverse:
         
         # Prepare the chat completions payload
         chat_payload = {
-            "model": "mdq100/Gemma3-Instruct-Abliterated:27b",  # Default model name
+            "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -217,10 +218,6 @@ class OllamaConverse:
         }
         
         try:
-            # response = requests.post(endpoint_url, headers=headers, json=payload, timeout=read_timeout)
-            # response.raise_for_status()
-            # result = response.json()
-
             result = send_request(endpoint_url, headers=headers, payload=payload)
             
             assistant_response = None

@@ -27,7 +27,7 @@ class TextToVideo:
             "required": {
                 "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
                 "positive_prompt": ("STRING", {"multiline": True, "default": "a beautiful landscape with mountains and trees"}),
-                "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"}),
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "length": ("INT", {"default": 81, "min": 1, "max": 300}),
