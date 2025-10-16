@@ -37,7 +37,8 @@ class GenerateImage:
                 "scheduler": ([
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "karras"}),
-                "workflow_name": ("STRING", {"default": "text_to_image"}),
+                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "workflow_name": ("STRING", {"default": "text_to_image_with_lora"}),
             }
         }
     
@@ -72,38 +73,10 @@ class GenerateImage:
         
         return image_tensor
 
-    # def send_request(self, endpoint: str, headers: dict, payload: dict) -> dict:
-    #     """Send a POST request to the RunPod endpoint and return the JSON response."""
-    #     # Make the request to RunPod with extended timeout for video generation
-    #     response = requests.post(f"{endpoint}/run", headers=headers, json=payload)
-    #     response.raise_for_status()
-    #     result = response.json()
-    #
-    #     job_id = result["id"]
-    #
-    #     # 900-second timeout for video generation
-    #     timeout = 900
-    #     start_time = time.time()
-    #     while (result["status"] == "IN_QUEUE"
-    #            or result["status"] == "IN_PROGRESS"):
-    #
-    #         if time.time() - start_time > timeout:
-    #             raise RuntimeError("Request timed out waiting for video generation")
-    #
-    #         print("Video generation in queue, waiting 5 seconds...")
-    #         time.sleep(2)
-    #
-    #         # Poll the endpoint again to check status
-    #         response = requests.post(f"{endpoint}/status/{job_id}", headers=headers, json=payload)
-    #         response.raise_for_status()
-    #         result = response.json()
-    #
-    #     return result
-
     def generate(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str,
-                scheduler: str, workflow_name: str) -> Tuple[torch.Tensor, str]:
+                scheduler: str, denoise: float, workflow_name: str) -> Tuple[torch.Tensor, str]:
 
         # Get instance configuration
         config = instance_config(instance_name)
@@ -124,7 +97,8 @@ class GenerateImage:
                     "cfg": cfg,
                     "seed": seed,
                     "sampler_name": sampler_name,
-                    "scheduler": scheduler
+                    "scheduler": scheduler,
+                    "denoise": denoise,
                 }
             }
         }
