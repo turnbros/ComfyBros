@@ -26,15 +26,16 @@ class TextToVideo:
         return {
             "required": {
                 "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
-                "prompt": ("STRING", {"multiline": True, "default": "a beautiful landscape with mountains and trees"}),
+                "positive_prompt": ("STRING", {"multiline": True, "default": "a beautiful landscape with mountains and trees"}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "length": ("INT", {"default": 81, "min": 1, "max": 300}),
-                "num_inference_steps": ("INT", {"default": 50, "min": 1, "max": 150}),
-                "guidance_scale": ("FLOAT", {"default": 7.5, "min": 0.1, "max": 30.0, "step": 0.1}),
+                "fps": ("INT", {"default": 24, "min": 1, "max": 60}),
+                "steps": ("INT", {"default": 50, "min": 1, "max": 150}),
+                "cfg": ("FLOAT", {"default": 5, "min": 0.1, "max": 30.0, "step": 0.1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 8}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 32}),
             }
         }
     
@@ -202,9 +203,9 @@ class TextToVideo:
         except Exception as e:
             raise RuntimeError(f"Error extracting frames from ZIP: {str(e)}")
 
-    def generate(self, instance_name: str, prompt: str, negative_prompt: str, 
-                width: int, height: int, length: int, num_inference_steps: int,
-                guidance_scale: float, seed: int, batch_size: int) -> Tuple[torch.Tensor, str]:
+    def generate(self, instance_name: str, positive_prompt: str, negative_prompt: str,
+                width: int, height: int, length: int, fps: int, steps: int,
+                cfg: float, seed: int, batch_size: int) -> Tuple[torch.Tensor, str]:
         
         # Generate random seed if -1
         if seed == -1:
@@ -220,13 +221,14 @@ class TextToVideo:
             "input": {
                 "workflow_name": "standalone_text_to_video",
                 "workflow_params": {
-                    "positive_prompt": prompt,
+                    "positive_prompt": positive_prompt,
                     "negative_prompt": negative_prompt,
                     "width": width,
                     "height": height,
                     "length": length,
-                    "num_inference_steps": num_inference_steps,
-                    "guidance_scale": guidance_scale,
+                    "fps": fps,
+                    "steps": steps,
+                    "cfg": cfg,
                     "seed": seed,
                     "batch_size": batch_size,
                     "model_path": "/runpod-volume/shared_models"
