@@ -220,7 +220,7 @@ class TextToVideo:
             "input": {
                 "workflow_name": "standalone_text_to_video",
                 "workflow_params": {
-                    "prompt": prompt,
+                    "positive_prompt": prompt,
                     "negative_prompt": negative_prompt,
                     "width": width,
                     "height": height,
