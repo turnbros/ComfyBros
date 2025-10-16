@@ -45,9 +45,6 @@ class WAN22GenerateVideo:
                 "scheduler": ([
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "simple"}),
-            },
-            "optional": {
-                "input_image_string": ("STRING", {"multiline": True, "default": ""}),
             }
         }
     

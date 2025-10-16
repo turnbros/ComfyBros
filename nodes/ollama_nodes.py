@@ -76,7 +76,13 @@ class OllamaConverse:
         return {
             "required": {
                 "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
-                "model": ("STRING", {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
+                "model": ([
+                  "redule26/huihui_ai_qwen2.5-vl-7b-abliterated:latest",
+                  "mdq100/Gemma3-Instruct-Abliterated:27b",
+                  "llama2-uncensored:latest",
+                  "goonsai/qwen2.5-3B-goonsai-nsfw-100k:latest",
+                  "benevolentjoker/nsfwvanessa:latest"
+              ], {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
