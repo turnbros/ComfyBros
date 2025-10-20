@@ -31,7 +31,7 @@ class WAN22GenerateVideo:
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "width": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
                 "height": ("INT", {"default": 512, "min": 64, "max": 2048, "step": 64}),
-                "length": ("INT", {"default": 81, "min": 9, "max": 900, "step": 9}),
+                "length": ("INT", {"default": 80, "min": 8, "max": 800, "step": 8}),
                 "fps": ("INT", {"default": 24, "min": 1, "max": 60}),
                 "steps": ("INT", {"default": 4, "min": 1, "max": 150}),
                 "cfg": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 30.0, "step": 0.1}),
