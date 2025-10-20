@@ -45,7 +45,6 @@ class WAN22GenerateVideo:
                 "scheduler": ([
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "simple"}),
-                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "shift": ("INT", {"default": 0, "min": -100, "max": 100}),
                 "low_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_low.safetensors"}),
                 "high_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_high.safetensors"}),
