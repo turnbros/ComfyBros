@@ -45,6 +45,10 @@ class WAN22GenerateVideo:
                 "scheduler": ([
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "simple"}),
+                "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "shift": ("INT", {"default": 0, "min": -100, "max": 100}),
+                "low_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_low.safetensors"}),
+                "high_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_high.safetensors"}),
             }
         }
     
@@ -415,10 +419,10 @@ class WAN22GenerateVideo:
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str, input_image_string: str = None) -> Tuple[torch.Tensor, str]:
-        
+                scheduler: str, shift: int, low_model_checkpoint: str, high_model_checkpoint: str ) -> Tuple[torch.Tensor, str]:
+
         # Process the input image
-        processed_image = self.process_input_image(input_image, input_image_string)
+        processed_image = self.process_input_image(input_image, None)
         
         # Generate random seed if -1
         if seed == -1:
@@ -445,7 +449,10 @@ class WAN22GenerateVideo:
                     "cfg": cfg,
                     "seed": seed,
                     "sampler_name": sampler_name,
-                    "scheduler": scheduler
+                    "scheduler": scheduler,
+                    "shift": shift,
+                    "low_model_checkpoint": low_model_checkpoint,
+                    "high_model_checkpoint": high_model_checkpoint
                 }
             }
         }
