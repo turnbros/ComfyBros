@@ -84,7 +84,7 @@ class OllamaConverse:
                   "benevolentjoker/nsfwvanessa:latest"
               ], {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "max_tokens": ("INT", {"default": 512, "min": 1, "max": 4096}),
+                "max_tokens": ("INT", {"default": 512, "min": 1, "max": 204800}),
                 "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
             },
