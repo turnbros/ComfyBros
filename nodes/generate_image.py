@@ -108,13 +108,12 @@ class GenerateImage:
             result = send_request(endpoint, headers, payload)
 
             # Parse the response to extract image data
-            if ("output" in result and 
-                "result" in result["output"] and 
-                "images" in result["output"]["result"] and 
-                len(result["output"]["result"]["images"]) > 0):
+            if ("output" in result and
+                "images" in result["output"] and
+                len(result["output"]["images"]) > 0):
                 
                 # Get the first image
-                first_image = result["output"]["result"]["images"][0]
+                first_image = result["output"]["images"][0]
                 
                 if "data" in first_image:
                     # Convert base64 image to tensor
@@ -124,10 +123,10 @@ class GenerateImage:
                     metadata = {
                         "filename": first_image.get("filename", "generated_image.png"),
                         "format": first_image.get("format", "PNG"),
-                        "parameters": result["output"]["result"].get("parameters", {}),
+                        "parameters": result["output"].get("parameters", {}),
                         "execution_time": result.get("executionTime", 0),
                         "delay_time": result.get("delayTime", 0),
-                        "status": result["output"]["result"].get("status", "unknown")
+                        "status": result["output"].get("status", "unknown")
                     }
                     
                     return (image_tensor, json.dumps(metadata, indent=2))
