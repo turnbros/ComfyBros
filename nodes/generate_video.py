@@ -459,11 +459,10 @@ class WAN22GenerateVideo:
             
             # Parse the response to extract frame data (new R2 ZIP archive schema)
             if ("output" in result and 
-                "result" in result["output"] and 
-                "frames" in result["output"]["result"]):
+                "frames" in result["output"]):
                 
-                frames_info = result["output"]["result"]["frames"]
-                frame_count = result["output"]["result"].get("frame_count", 0)
+                frames_info = result["output"]["frames"]
+                frame_count = result["output"].get("frame_count", 0)
                 
                 # Check if this is the new R2 ZIP archive format
                 if isinstance(frames_info, dict) and "bucket" in frames_info and "key" in frames_info:
@@ -488,10 +487,10 @@ class WAN22GenerateVideo:
                     metadata = {
                         "frame_count": frame_count,
                         "tensor_shape": list(frame_tensors.shape),
-                        "parameters": result["output"]["result"].get("parameters", {}),
+                        "parameters": result["output"].get("parameters", {}),
                         "execution_time": result.get("executionTime", 0),
                         "delay_time": result.get("delayTime", 0),
-                        "status": result["output"]["result"].get("status", "unknown"),
+                        "status": result["output"].get("status", "unknown"),
                         "r2_info": {
                             "bucket": bucket,
                             "key": key,
@@ -507,50 +506,6 @@ class WAN22GenerateVideo:
                     }
                     
                     return (frame_tensors, json.dumps(metadata, indent=2))
-                
-                # Fallback: old direct frames format (list of frame objects)
-                elif isinstance(frames_info, list) and len(frames_info) > 0:
-                    print(f"Processing {len(frames_info)} frames from direct format...")
-                    
-                    # Convert frames to tensor batch
-                    frame_tensors = self.frames_to_tensor_batch(frames_info)
-                    
-                    # Create metadata string with generation parameters
-                    metadata = {
-                        "frame_count": len(frames_info),
-                        "tensor_shape": list(frame_tensors.shape),
-                        "parameters": result["output"]["result"].get("parameters", {}),
-                        "execution_time": result.get("executionTime", 0),
-                        "delay_time": result.get("delayTime", 0),
-                        "status": result["output"]["result"].get("status", "unknown"),
-                        "video_info": {
-                            "width": width,
-                            "height": height,
-                            "length": length,
-                            "fps": fps
-                        }
-                    }
-                    
-                    return (frame_tensors, json.dumps(metadata, indent=2))
-                else:
-                    raise RuntimeError("Invalid frames format in response")
-                
-            # Fallback: try old schema for backwards compatibility
-            elif ("output" in result and 
-                  "result" in result["output"] and 
-                  "videos" in result["output"]["result"] and 
-                  len(result["output"]["result"]["videos"]) > 0):
-                
-                # Get the first video (old schema)
-                first_video = result["output"]["result"]["videos"][0]
-                
-                if "data" in first_video:
-                    # Old schema fallback - return error since we can't convert a single video file to frames
-                    raise RuntimeError("Old video format detected but this node now outputs individual frames. Please use the updated workflow that returns frames.")
-                else:
-                    raise RuntimeError("No video data found in response")
-            else:
-                raise RuntimeError(f"Unexpected response structure: {json.dumps(result, indent=2)}")
 
         except Exception as e:
             raise RuntimeError(f"Unexpected error: {str(e)}")
