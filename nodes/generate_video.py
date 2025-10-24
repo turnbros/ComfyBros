@@ -435,24 +435,21 @@ class WAN22GenerateVideo:
         # Prepare payload structure for image_to_video workflow
         payload = {
             "input": {
-                "workflow_name": "image_to_video",
-                "workflow_params": {
-                    "input_image": processed_image,
-                    "positive_prompt": positive_prompt,
-                    "negative_prompt": negative_prompt,
-                    "width": width,
-                    "height": height,
-                    "length": length,
-                    "fps": fps,
-                    "steps": steps,
-                    "cfg": cfg,
-                    "seed": seed,
-                    "sampler_name": sampler_name,
-                    "scheduler": scheduler,
-                    "shift": shift,
-                    "low_model_checkpoint": low_model_checkpoint,
-                    "high_model_checkpoint": high_model_checkpoint
-                }
+                "input_image": processed_image,
+                "positive_prompt": positive_prompt,
+                "negative_prompt": negative_prompt,
+                "width": width,
+                "height": height,
+                "length": length,
+                "fps": fps,
+                "steps": steps,
+                "cfg": cfg,
+                "seed": seed,
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
+                "shift": shift,
+                "low_model_checkpoint": low_model_checkpoint,
+                "high_model_checkpoint": high_model_checkpoint
             }
         }
         
