@@ -39,6 +39,7 @@ class GenerateImage:
                 ], {"default": "karras"}),
                 "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "workflow_name": ("STRING", {"default": "text_to_image_with_lora"}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 512}),
             }
         }
     
@@ -76,7 +77,7 @@ class GenerateImage:
     def generate(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str,
-                scheduler: str, denoise: float, workflow_name: str) -> Tuple[torch.Tensor, str]:
+                scheduler: str, denoise: float, batch_size: int) -> Tuple[torch.Tensor, str]:
 
         # Get instance configuration
         config = instance_config(instance_name)
@@ -86,20 +87,18 @@ class GenerateImage:
         # Prepare payload structure
         payload = {
             "input": {
-                "workflow_name": workflow_name,
-                "workflow_params": {
-                    "positive_prompt": positive_prompt,
-                    "negative_prompt": negative_prompt,
-                    "checkpoint": checkpoint,
-                    "width": width,
-                    "height": height,
-                    "steps": steps,
-                    "cfg": cfg,
-                    "seed": seed,
-                    "sampler_name": sampler_name,
-                    "scheduler": scheduler,
-                    "denoise": denoise,
-                }
+                "positive_prompt": positive_prompt,
+                "negative_prompt": negative_prompt,
+                "checkpoint": checkpoint,
+                "width": width,
+                "height": height,
+                "steps": steps,
+                "cfg": cfg,
+                "seed": seed,
+                "sampler_name": sampler_name,
+                "scheduler": scheduler,
+                "denoise": denoise,
+                "batch_size": batch_size,
             }
         }
         
