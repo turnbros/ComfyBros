@@ -38,7 +38,6 @@ class GenerateImage:
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "karras"}),
                 "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "workflow_name": ("STRING", {"default": "text_to_image_with_lora"}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 512}),
             }
         }
