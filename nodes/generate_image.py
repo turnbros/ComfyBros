@@ -110,26 +110,35 @@ class GenerateImage:
                 "images" in result["output"] and
                 len(result["output"]["images"]) > 0):
                 
-                # Get the first image
-                first_image = result["output"]["images"][0]
+                # Process all images in the batch
+                image_tensors = []
+                for i, image_data in enumerate(result["output"]["images"]):
+                    if "data" in image_data:
+                        # Convert base64 image to tensor
+                        image_tensor = self.base64_to_tensor(image_data["data"])
+                        image_tensors.append(image_tensor)
+                    else:
+                        raise RuntimeError(f"No image data found in response for image {i}")
                 
-                if "data" in first_image:
-                    # Convert base64 image to tensor
-                    image_tensor = self.base64_to_tensor(first_image["data"])
+                # Stack all images into a single batch tensor
+                if image_tensors:
+                    batch_tensor = torch.cat(image_tensors, dim=0)
                     
                     # Create metadata string with generation parameters
                     metadata = {
-                        "filename": first_image.get("filename", "generated_image.png"),
-                        "format": first_image.get("format", "PNG"),
+                        "batch_size": len(image_tensors),
+                        "filenames": [img.get("filename", f"generated_image_{i}.png") 
+                                    for i, img in enumerate(result["output"]["images"])],
+                        "format": result["output"]["images"][0].get("format", "PNG"),
                         "parameters": result["output"].get("parameters", {}),
                         "execution_time": result.get("executionTime", 0),
                         "delay_time": result.get("delayTime", 0),
                         "status": result["output"].get("status", "unknown")
                     }
                     
-                    return (image_tensor, json.dumps(metadata, indent=2))
+                    return (batch_tensor, json.dumps(metadata, indent=2))
                 else:
-                    raise RuntimeError("No image data found in response")
+                    raise RuntimeError("No valid images found in batch")
             else:
                 raise RuntimeError(f"Unexpected response structure: {json.dumps(result, indent=2)}")
             
