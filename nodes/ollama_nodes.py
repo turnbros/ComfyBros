@@ -79,6 +79,7 @@ class OllamaConverse:
                 "model": ([
                   "redule26/huihui_ai_qwen2.5-vl-7b-abliterated:latest",
                   "mdq100/Gemma3-Instruct-Abliterated:27b",
+                  "goekdenizguelmez/JOSIEFIED-Qwen3:30b",
                   "llama2-uncensored:latest",
                   "goonsai/qwen2.5-3B-goonsai-nsfw-100k:latest",
                   "benevolentjoker/nsfwvanessa:latest"
