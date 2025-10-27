@@ -6,13 +6,12 @@ class MediaGallery {
         
         this.initializeElements();
         this.bindEvents();
-        this.setupDropzone();
+        this.loadFromServer();
     }
 
     initializeElements() {
         this.elements = {
-            folderInput: document.getElementById('folderInput'),
-            loadFolderBtn: document.getElementById('loadFolderBtn'),
+            refreshBtn: document.getElementById('refreshBtn'),
             sortSelect: document.getElementById('sortSelect'),
             filterSelect: document.getElementById('filterSelect'),
             dropzone: document.getElementById('dropzone'),
@@ -32,12 +31,8 @@ class MediaGallery {
     }
 
     bindEvents() {
-        this.elements.loadFolderBtn.addEventListener('click', () => {
-            this.elements.folderInput.click();
-        });
-
-        this.elements.folderInput.addEventListener('change', (e) => {
-            this.handleFileSelection(e.target.files);
+        this.elements.refreshBtn.addEventListener('click', () => {
+            this.loadFromServer();
         });
 
         this.elements.sortSelect.addEventListener('change', () => {
@@ -81,6 +76,40 @@ class MediaGallery {
         this.elements.modalVideo.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
+    }
+
+    async loadFromServer() {
+        this.showLoading();
+        try {
+            const response = await fetch('/api/files');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const files = await response.json();
+            this.mediaFiles = files.map(file => ({
+                name: file.name,
+                path: file.path,
+                size: this.formatFileSize(file.size),
+                date: new Date(file.modified),
+                type: file.type,
+                url: `/api/file/${file.path}`,
+                thumbnail: `/api/thumbnail/${file.path}`
+            }));
+            
+            this.sortAndFilterMedia();
+            this.hideLoading();
+            this.showGallery();
+        } catch (error) {
+            console.error('Error loading files from server:', error);
+            this.hideLoading();
+            this.showDropzone();
+        }
+    }
+
+    showDropzone() {
+        this.elements.dropzone.classList.remove('hidden');
+        this.elements.gallery.classList.add('hidden');
     }
 
     setupDropzone() {

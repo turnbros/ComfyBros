@@ -10,8 +10,7 @@
     <header class="header">
         <h1>ComfyUI Gallery</h1>
         <div class="controls">
-            <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*,video/*" style="display: none;">
-            <button id="loadFolderBtn" class="btn">Load Folder</button>
+            <button id="refreshBtn" class="btn">Refresh</button>
             <select id="sortSelect" class="select">
                 <option value="date-desc">Newest First</option>
                 <option value="date-asc">Oldest First</option>
@@ -29,9 +28,9 @@
     <main class="main">
         <div id="dropzone" class="dropzone">
             <div class="dropzone-content">
-                <div class="dropzone-icon">📁</div>
-                <p>Drop a folder here or click "Load Folder" to browse your ComfyUI outputs</p>
-                <p class="dropzone-hint">Supports: JPG, PNG, GIF, WebP, MP4, WebM</p>
+                <div class="dropzone-icon">🖼️</div>
+                <p>Loading ComfyUI outputs from server...</p>
+                <p class="dropzone-hint">If no files appear, check that the server is running and the output directory is configured correctly</p>
             </div>
         </div>
 
