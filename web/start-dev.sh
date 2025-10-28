@@ -3,27 +3,9 @@
 echo "🚀 Starting Media Gallery Development Environment"
 echo ""
 
-# Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is required but not found. Please install Python 3."
-    exit 1
-fi
-
-# Check if Node.js is available
-if ! command -v npm &> /dev/null; then
-    echo "❌ Node.js/npm is required but not found. Please install Node.js."
-    exit 1
-fi
-
-echo "📦 Installing Python dependencies..."
-cd api
-pip3 install -r requirements.txt
-echo ""
-
 echo "🐍 Starting FastAPI backend on port 8000..."
-python3 start.py &
+uv run ./api/start.py &
 BACKEND_PID=$!
-cd ..
 
 echo "📦 Installing Node.js dependencies..."
 npm install
