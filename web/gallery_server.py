@@ -54,13 +54,24 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             supported_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mov', '.avi'}
             
             for root, dirs, filenames in os.walk(self.output_dir):
-                # Skip the thumbnails directory
-                if Path(root) == self.thumbnail_dir:
+                root_path = Path(root)
+                
+                # Remove thumbnails directory from the dirs list to prevent traversal
+                if 'thumbnails' in dirs:
+                    dirs.remove('thumbnails')
+                
+                # Skip the thumbnails directory and any subdirectories
+                if self.thumbnail_dir in root_path.parents or root_path == self.thumbnail_dir:
                     continue
                 
                 for filename in filenames:
                     if any(filename.lower().endswith(ext) for ext in supported_extensions):
                         file_path = Path(root) / filename
+                        
+                        # Additional check to ensure file is not in thumbnails directory
+                        if self.thumbnail_dir in file_path.parents:
+                            continue
+                            
                         rel_path = file_path.relative_to(self.output_dir)
                         
                         stat = file_path.stat()
