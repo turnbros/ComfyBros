@@ -130,6 +130,11 @@
   function handleVideoLoad(event) {
     const video = event.target
     
+    // Only attempt autoplay for the currently visible slide
+    if (!video.closest('.swiper-slide-active')) {
+      return
+    }
+    
     // Only try autoplay once and handle gracefully
     const attemptAutoplay = async () => {
       try {
@@ -191,7 +196,10 @@
         lazy: {
           loadPrevNext: true,
           loadPrevNextAmount: 1,
+          loadOnTransitionStart: false,
         },
+        watchSlidesProgress: true,
+        watchSlidesVisibility: true,
         navigation: {
           prevEl: '.swiper-button-prev',
           nextEl: '.swiper-button-next',
@@ -307,26 +315,26 @@
               <div class="swiper-zoom-container">
                 {#if item.type === 'image'}
                   <img 
-                    src={item.url} 
+                    data-src={item.url} 
                     alt={item.name}
-                    class="modal-image"
+                    class="modal-image swiper-lazy"
                   />
+                  <div class="swiper-lazy-preloader"></div>
                 {:else}
                   <video 
-                    src={item.url}
-                    class="modal-video"
+                    data-src={item.url}
+                    class="modal-video swiper-lazy"
                     controls
-                    autoplay
                     muted
                     loop
                     playsinline
-                    preload="metadata"
+                    preload="none"
                     webkit-playsinline="true"
                     x5-playsinline="true"
-                    on:loadedmetadata={handleVideoLoad}
-                    on:canplay={handleVideoLoad}>
+                    on:loadedmetadata={handleVideoLoad}>
                     <track kind="captions" src="" label="No captions available" />
                   </video>
+                  <div class="swiper-lazy-preloader"></div>
                 {/if}
               </div>
             </div>
