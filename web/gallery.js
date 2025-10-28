@@ -1,12 +1,19 @@
 class MediaGallery {
     constructor() {
-        this.mediaFiles = [];
-        this.currentIndex = 0;
-        this.filteredFiles = [];
-        
-        this.initializeElements();
-        this.bindEvents();
-        this.loadFromServer();
+        try {
+            this.mediaFiles = [];
+            this.currentIndex = 0;
+            this.filteredFiles = [];
+            
+            console.log('Initializing elements...');
+            this.initializeElements();
+            console.log('Binding events...');
+            this.bindEvents();
+            console.log('Loading from server...');
+            this.loadFromServer();
+        } catch (error) {
+            console.error('Error in MediaGallery constructor:', error);
+        }
     }
 
     initializeElements() {
@@ -174,6 +181,8 @@ class MediaGallery {
 
     isUIElement(element) {
         // Check if the touch target is a UI control that should remain interactive
+        if (!element) return false;
+        
         const uiSelectors = [
             '.modal-close',
             '.nav-btn',
@@ -183,7 +192,25 @@ class MediaGallery {
         ];
         
         return uiSelectors.some(selector => {
-            return element.matches?.(selector) || element.closest?.(selector);
+            try {
+                if (element.matches && element.matches(selector)) return true;
+                if (element.closest && element.closest(selector)) return true;
+                
+                // Fallback for older browsers
+                let current = element;
+                while (current && current !== document) {
+                    if (current.classList && current.classList.contains(selector.replace('.', ''))) {
+                        return true;
+                    }
+                    if (current.tagName && current.tagName.toLowerCase() === selector.toLowerCase()) {
+                        return true;
+                    }
+                    current = current.parentElement;
+                }
+                return false;
+            } catch (e) {
+                return false;
+            }
         });
     }
 
@@ -557,5 +584,11 @@ class MediaGallery {
 
 // Initialize the gallery when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new MediaGallery();
+    try {
+        console.log('Initializing MediaGallery...');
+        new MediaGallery();
+        console.log('MediaGallery initialized successfully');
+    } catch (error) {
+        console.error('Error initializing MediaGallery:', error);
+    }
 });
