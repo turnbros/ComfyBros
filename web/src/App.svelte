@@ -3,6 +3,7 @@
   import { mediaStore } from './lib/stores.js'
   
   let loading = true
+  let error = null
   
   async function loadMedia() {
     try {
@@ -23,8 +24,10 @@
       }))
       
       mediaStore.set(mediaFiles)
-    } catch (error) {
-      console.error('Error loading files:', error)
+      error = null
+    } catch (err) {
+      console.error('Error loading files:', err)
+      error = 'Failed to load media files. Make sure the API server is running on port 8000.'
       mediaStore.set([])
     } finally {
       loading = false
@@ -47,7 +50,14 @@
   {#if loading}
     <div class="loading">
       <div class="spinner"></div>
-      <p>Loading ComfyUI outputs...</p>
+      <p>Loading media gallery...</p>
+    </div>
+  {:else if error}
+    <div class="error">
+      <div class="error-icon">⚠️</div>
+      <h2>Connection Error</h2>
+      <p>{error}</p>
+      <button class="retry-btn" on:click={loadMedia}>Retry</button>
     </div>
   {:else}
     <Gallery />
@@ -87,5 +97,46 @@
   
   .loading p {
     color: var(--text-secondary);
+  }
+
+  .error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .error h2 {
+    color: #ff3b30;
+    margin-bottom: 1rem;
+  }
+
+  .error p {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 500px;
+  }
+
+  .retry-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+  }
+
+  .retry-btn:hover {
+    background: #1a73e8;
   }
 </style>
