@@ -129,24 +129,26 @@
 
   function handleVideoLoad(event) {
     const video = event.target
-    // Force autoplay for videos with multiple attempts
-    const playVideo = () => {
-      video.play().catch(e => {
-        console.log('Autoplay prevented:', e)
-        // Try again with user interaction
+    
+    // Only try autoplay once and handle gracefully
+    const attemptAutoplay = async () => {
+      try {
+        await video.play()
+      } catch (e) {
+        // Silently fail - autoplay is often blocked
         video.muted = true
-        video.play().catch(err => {
-          console.log('Muted autoplay also failed:', err)
-        })
-      })
+        try {
+          await video.play()
+        } catch (mutedError) {
+          // Even muted autoplay failed, just leave it paused
+        }
+      }
     }
     
-    // Try immediately and with delays
-    playVideo()
-    setTimeout(playVideo, 100)
-    setTimeout(playVideo, 500)
+    // Single attempt after a brief delay
+    setTimeout(attemptAutoplay, 100)
     
-    // Add click handler for iOS
+    // Add click handler for manual play
     const handleFirstPlay = () => {
       video.play()
       video.removeEventListener('click', handleFirstPlay)
@@ -183,6 +185,7 @@
         shortSwipes: true,
         longSwipes: true,
         threshold: 10,
+        passiveListeners: true,
         speed: 300,
         preloadImages: false,
         lazy: {
