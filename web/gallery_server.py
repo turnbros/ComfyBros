@@ -170,8 +170,12 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             file_path = Path(file_path)
             thumbnail_path = self.get_thumbnail_path(file_path)
             
+            print(f"Generating thumbnail for: {file_path}")
+            print(f"Thumbnail path: {thumbnail_path}")
+            
             # Check if we have a valid cached thumbnail
             if self.is_thumbnail_valid(file_path, thumbnail_path):
+                print(f"Using cached thumbnail: {thumbnail_path}")
                 with open(thumbnail_path, 'rb') as f:
                     return f.read()
             
@@ -179,14 +183,28 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             thumbnail_data = None
             
             if file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                print(f"Processing image: {file_path}")
                 # Image thumbnail
-                with Image.open(file_path) as img:
-                    img.thumbnail(size, Image.Resampling.LANCZOS)
-                    with tempfile.BytesIO() as output:
-                        img.save(output, format='JPEG', quality=85)
-                        thumbnail_data = output.getvalue()
+                try:
+                    with Image.open(file_path) as img:
+                        print(f"Opened image: {img.size}, mode: {img.mode}")
+                        img.thumbnail(size, Image.Resampling.LANCZOS)
+                        print(f"Resized to: {img.size}")
+                        
+                        # Convert to RGB if necessary
+                        if img.mode in ('RGBA', 'P'):
+                            img = img.convert('RGB')
+                        
+                        with tempfile.BytesIO() as output:
+                            img.save(output, format='JPEG', quality=85)
+                            thumbnail_data = output.getvalue()
+                            print(f"Generated thumbnail data: {len(thumbnail_data)} bytes")
+                except Exception as e:
+                    print(f"Error processing image {file_path}: {e}")
+                    return None
             
             elif file_path.suffix.lower() in ['.mp4', '.webm', '.mov', '.avi']:
+                print(f"Processing video: {file_path}")
                 # Video thumbnail using ffmpeg (if available)
                 try:
                     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
@@ -194,7 +212,8 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                             'ffmpeg', '-i', str(file_path), '-vf', 'thumbnail', 
                             '-frames:v', '1', '-f', 'image2', '-y', temp_file.name
                         ]
-                        subprocess.run(cmd, capture_output=True, check=True)
+                        result = subprocess.run(cmd, capture_output=True, check=True)
+                        print(f"ffmpeg completed successfully")
                         
                         with Image.open(temp_file.name) as img:
                             img.thumbnail(size, Image.Resampling.LANCZOS)
@@ -202,21 +221,31 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                                 img.save(output, format='JPEG', quality=85)
                                 thumbnail_data = output.getvalue()
                                 os.unlink(temp_file.name)
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    # Fallback to a placeholder or return None
-                    pass
+                                print(f"Generated video thumbnail: {len(thumbnail_data)} bytes")
+                except subprocess.CalledProcessError as e:
+                    print(f"ffmpeg error for {file_path}: {e.stderr.decode()}")
+                except FileNotFoundError:
+                    print(f"ffmpeg not found for {file_path}")
+                except Exception as e:
+                    print(f"Error processing video {file_path}: {e}")
             
             # Cache the thumbnail if we generated one
             if thumbnail_data:
                 try:
                     with open(thumbnail_path, 'wb') as f:
                         f.write(thumbnail_data)
+                    print(f"Cached thumbnail: {thumbnail_path}")
                 except Exception as e:
                     print(f"Warning: Could not cache thumbnail: {e}")
+            else:
+                print(f"No thumbnail data generated for: {file_path}")
             
             return thumbnail_data
             
-        except Exception:
+        except Exception as e:
+            print(f"Exception in generate_thumbnail for {file_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 
