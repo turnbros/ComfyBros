@@ -13,6 +13,13 @@ export function swipe(node, options = {}) {
   } = options
   
   function handleTouchStart(event) {
+    // Ignore multi-touch gestures (pinch/zoom)
+    if (event.touches.length > 1) {
+      startX = null
+      startY = null
+      return
+    }
+    
     const touch = event.touches[0]
     startX = touch.clientX
     startY = touch.clientY
@@ -22,6 +29,13 @@ export function swipe(node, options = {}) {
   
   function handleTouchMove(event) {
     if (!startX || !startY) return
+    
+    // Ignore multi-touch gestures
+    if (event.touches.length > 1) {
+      startX = null
+      startY = null
+      return
+    }
     
     const touch = event.touches[0]
     const deltaX = Math.abs(touch.clientX - startX)

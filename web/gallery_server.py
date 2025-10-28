@@ -46,6 +46,15 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
     
+    def do_POST(self):
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path == '/api/generate':
+            self.handle_api_generate()
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
     def do_GET(self):
         parsed_path = urlparse(self.path)
         
@@ -295,6 +304,49 @@ class GalleryHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"Error deleting file: {e}")
             self.send_error(500, f"Error deleting file: {str(e)}")
+    
+    def handle_api_generate(self):
+        """Trigger image generation workflow"""
+        try:
+            # Read the request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length:
+                post_data = self.rfile.read(content_length)
+                request_data = json.loads(post_data.decode('utf-8'))
+            else:
+                request_data = {}
+            
+            # Here you can add your ComfyUI workflow triggering logic
+            # For now, we'll just create a simple trigger mechanism
+            
+            # Look for ComfyUI API or create a simple file-based trigger
+            comfy_trigger_file = self.output_dir.parent / "trigger_generation.json"
+            
+            # Create trigger file with timestamp and request info
+            trigger_data = {
+                "timestamp": datetime.now().isoformat(),
+                "source": "gallery",
+                "request_data": request_data
+            }
+            
+            with open(comfy_trigger_file, 'w') as f:
+                json.dump(trigger_data, f, indent=2)
+            
+            print(f"Generation trigger created: {comfy_trigger_file}")
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                'success': True, 
+                'message': 'Generation triggered successfully',
+                'trigger_file': str(comfy_trigger_file)
+            }).encode())
+            
+        except Exception as e:
+            print(f"Error triggering generation: {e}")
+            self.send_error(500, f"Error triggering generation: {str(e)}")
 
 
 def main():

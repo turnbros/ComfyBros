@@ -11,12 +11,41 @@
   function refreshMedia() {
     window.location.reload()
   }
+  
+  async function generateNewImage() {
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          trigger: 'gallery_main',
+          timestamp: Date.now()
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        alert('Image generation started! Check back in a few moments for new images.')
+      } else {
+        alert('Failed to start image generation')
+      }
+    } catch (error) {
+      console.error('Error starting generation:', error)
+      alert('Error starting generation')
+    }
+  }
 </script>
 
 <div class="gallery">
   <header class="header">
     <h1>ComfyUI Gallery</h1>
     <div class="controls">
+      <button class="btn generate-btn" on:click={generateNewImage}>
+        ✨ Generate
+      </button>
+      
       <button class="btn" on:click={refreshMedia}>
         Refresh
       </button>
@@ -101,6 +130,19 @@
   
   .btn:hover {
     background-color: #4d4d4d;
+  }
+  
+  .generate-btn {
+    background: linear-gradient(135deg, #34c759, #30d158);
+    color: white;
+    border: none;
+    font-weight: 500;
+  }
+  
+  .generate-btn:hover {
+    background: linear-gradient(135deg, #30d158, #34c759);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.3);
   }
   
   .main {
