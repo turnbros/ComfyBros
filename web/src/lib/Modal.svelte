@@ -183,6 +183,12 @@
         shortSwipes: true,
         longSwipes: true,
         threshold: 10,
+        speed: 300,
+        preloadImages: false,
+        lazy: {
+          loadPrevNext: true,
+          loadPrevNextAmount: 1,
+        },
         navigation: {
           prevEl: '.swiper-button-prev',
           nextEl: '.swiper-button-next',

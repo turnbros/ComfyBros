@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
@@ -10,6 +10,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Optional
 import uuid
+from PIL import Image, ImageOps
+import io
 
 app = FastAPI(title="Media Gallery API", version="1.0.0")
 
@@ -24,10 +26,12 @@ app.add_middleware(
 
 # Configuration
 MEDIA_DIR = Path("/opt/ComfyUI/output")  # Directory containing media files
+THUMBNAILS_DIR = Path("thumbnails")  # Thumbnail cache directory
 JOBS_FILE = Path("jobs.json")  # Job queue storage
 
 # Ensure directories exist
 MEDIA_DIR.mkdir(exist_ok=True)
+THUMBNAILS_DIR.mkdir(exist_ok=True)
 
 # Pydantic models
 class MediaFile(BaseModel):
@@ -76,6 +80,29 @@ def get_file_type(file_path: Path) -> str:
         elif mime_type.startswith('video/'):
             return 'video'
     return 'unknown'
+
+def generate_thumbnail(image_path: Path, size: tuple = (300, 300)) -> bytes:
+    """Generate a thumbnail for an image and return as bytes"""
+    try:
+        with Image.open(image_path) as img:
+            # Convert to RGB if necessary (for PNG with transparency, etc.)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                img = rgb_img
+            
+            # Create thumbnail
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            
+            # Save to bytes
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='JPEG', quality=85, optimize=True)
+            return img_byte_arr.getvalue()
+    except Exception as e:
+        print(f"Error generating thumbnail for {image_path}: {e}")
+        return None
 
 def scan_media_files() -> List[MediaFile]:
     """Scan media directory and return list of media files"""
@@ -138,9 +165,45 @@ async def get_file(file_path: str):
 
 @app.get("/api/thumbnail/{file_path:path}")
 async def get_thumbnail(file_path: str):
-    """Get thumbnail for a media file (for now, just return the original file)"""
-    # TODO: Implement actual thumbnail generation
-    return await get_file(file_path)
+    """Get thumbnail for a media file"""
+    try:
+        # Validate path to prevent traversal attacks
+        full_path = MEDIA_DIR / file_path
+        full_path.resolve().relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if it's an image
+    if get_file_type(full_path) != 'image':
+        # For videos, just serve the original file for now
+        return FileResponse(full_path)
+    
+    # Generate cache filename
+    cache_name = f"{file_path.replace('/', '_').replace('\\', '_')}_thumb.jpg"
+    cache_path = THUMBNAILS_DIR / cache_name
+    
+    # Check if thumbnail exists and is newer than original
+    if cache_path.exists() and cache_path.stat().st_mtime > full_path.stat().st_mtime:
+        return FileResponse(cache_path, media_type="image/jpeg")
+    
+    # Generate new thumbnail
+    thumbnail_data = generate_thumbnail(full_path)
+    if thumbnail_data is None:
+        # Fall back to original file if thumbnail generation fails
+        return FileResponse(full_path)
+    
+    # Save to cache
+    try:
+        with open(cache_path, 'wb') as f:
+            f.write(thumbnail_data)
+    except Exception as e:
+        print(f"Failed to cache thumbnail: {e}")
+    
+    # Return thumbnail
+    return Response(content=thumbnail_data, media_type="image/jpeg")
 
 @app.delete("/api/delete/{file_path:path}")
 async def delete_file(file_path: str):

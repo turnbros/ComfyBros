@@ -155,6 +155,8 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1rem;
     padding: 0;
+    contain: layout;
+    transform: translateZ(0); /* Force GPU acceleration */
   }
   
   .empty {
@@ -198,6 +200,7 @@
     .btn, .select {
       padding: 0.7rem;
       font-size: 1rem;
+      touch-action: manipulation; /* Disable double-tap zoom */
     }
     
     .main {
@@ -207,6 +210,7 @@
     .media-grid {
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 0.5rem;
+      will-change: scroll-position; /* Optimize for scrolling */
     }
   }
   
