@@ -1,11 +1,13 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
-  import { modalOpen, currentIndex, currentMedia, filteredMedia } from './stores.js'
+  import { modalOpen, currentIndex, currentMedia, filteredMedia, mediaStore } from './stores.js'
   import { swipe } from './gestures.js'
   import { fade } from 'svelte/transition'
   
   let scrollY = 0
   let isTransitioning = false
+  let showInfo = true
+  let showMenu = false
   
   function closeModal() {
     modalOpen.set(false)
@@ -40,6 +42,52 @@
     navigate(1)
   }
   
+  function toggleInfo() {
+    showInfo = !showInfo
+  }
+  
+  function toggleMenu() {
+    showMenu = !showMenu
+  }
+  
+  async function deleteCurrentMedia() {
+    if (!confirm(`Are you sure you want to delete ${$currentMedia.name}?`)) {
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/delete/${$currentMedia.path}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        // Remove from current media array
+        const currentArray = $filteredMedia
+        const currentIdx = $currentIndex
+        const newArray = currentArray.filter((_, i) => i !== currentIdx)
+        
+        // Update stores
+        mediaStore.update(allMedia => allMedia.filter(item => item.path !== $currentMedia.path))
+        
+        // Navigate to next image or close modal if no more images
+        if (newArray.length === 0) {
+          closeModal()
+        } else {
+          // Adjust index if we deleted the last item
+          const newIndex = currentIdx >= newArray.length ? newArray.length - 1 : currentIdx
+          currentIndex.set(newIndex)
+        }
+        
+        showMenu = false
+      } else {
+        alert('Failed to delete file')
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error)
+      alert('Error deleting file')
+    }
+  }
+  
   function handleKeydown(event) {
     switch (event.key) {
       case 'Escape':
@@ -50,6 +98,14 @@
         break
       case 'ArrowRight':
         nextImage()
+        break
+      case 'i':
+      case 'I':
+        toggleInfo()
+        break
+      case 'm':
+      case 'M':
+        toggleMenu()
         break
     }
   }
@@ -68,6 +124,31 @@
     document.body.style.width = '100%'
     document.body.style.top = `-${scrollY}px`
     document.body.style.overflow = 'hidden'
+    
+    // Force Safari fullscreen behavior
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isIOS) {
+      // Add minimal-ui to hide Safari UI
+      const metaViewport = document.querySelector('meta[name=viewport]')
+      if (metaViewport) {
+        metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no')
+      }
+      
+      // Force scroll to hide address bar
+      setTimeout(() => {
+        window.scrollTo(0, 1)
+        window.scrollTo(0, 0)
+      }, 100)
+    }
+    
+    // Set CSS custom properties for proper viewport height
+    const setViewportHeight = () => {
+      const vh = window.innerHeight * 0.01
+      document.documentElement.style.setProperty('--vh', `${vh}px`)
+    }
+    setViewportHeight()
+    window.addEventListener('resize', setViewportHeight)
+    window.addEventListener('orientationchange', setViewportHeight)
   })
   
   onDestroy(() => {
@@ -116,6 +197,10 @@
                 src={$currentMedia.url}
                 class="modal-video"
                 controls
+                autoplay
+                muted
+                loop
+                playsinline
                 preload="metadata">
                 <track kind="captions" src="" label="No captions available" />
               </video>
@@ -123,25 +208,41 @@
           </div>
         {/key}
         
-        {#if $filteredMedia.length > 1}
-          <div class="modal-nav">
-            <button class="nav-btn nav-prev" on:click={previousImage} aria-label="Previous" disabled={isTransitioning}>
-              ‹
-            </button>
-            <button class="nav-btn nav-next" on:click={nextImage} aria-label="Next" disabled={isTransitioning}>
-              ›
-            </button>
-          </div>
-        {/if}
       </div>
       
-      <div class="modal-info">
+      <div class="modal-info" class:hidden={!showInfo}>
         <h3>{$currentMedia.name}</h3>
         <div class="modal-details">
           <span>{$currentMedia.size}</span>
           <span>{formatDate($currentMedia.date)}</span>
         </div>
       </div>
+      
+      <button 
+        class="info-toggle" 
+        on:click={toggleInfo} 
+        aria-label={showInfo ? "Hide info" : "Show info"}
+        title={showInfo ? "Hide info (I)" : "Show info (I)"}
+      >
+        ℹ️
+      </button>
+      
+      <button 
+        class="menu-toggle" 
+        on:click={toggleMenu} 
+        aria-label={showMenu ? "Hide menu" : "Show menu"}
+        title={showMenu ? "Hide menu (M)" : "Show menu (M)"}
+      >
+        ☰
+      </button>
+      
+      {#if showMenu}
+        <div class="hamburger-menu" in:fade={{ duration: 200 }} out:fade={{ duration: 200 }}>
+          <button class="menu-item delete-btn" on:click={deleteCurrentMedia}>
+            🗑️ Delete
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -152,13 +253,17 @@
     top: 0;
     left: 0;
     width: 100vw;
+    width: 100dvw;
     height: 100vh;
+    height: 100dvh;
+    height: calc(var(--vh, 1vh) * 100);
     background-color: rgba(0, 0, 0, 0.95);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9999;
     padding: 1rem;
+    -webkit-overflow-scrolling: touch;
   }
   
   .modal::before {
@@ -179,11 +284,12 @@
   
   .modal-content {
     position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
+    width: 100vw;
+    height: 100vh;
+    height: calc(var(--vh, 1vh) * 100);
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
   }
   
   .modal-close {
@@ -206,9 +312,7 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 80vh;
-    max-width: 90vw;
-    max-height: 80vh;
+    height: 100%;
     overflow: hidden;
   }
   
@@ -280,9 +384,22 @@
   }
   
   .modal-info {
-    margin-top: 1rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
     text-align: center;
     color: white;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+    z-index: 1002;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .modal-info.hidden {
+    transform: translateY(100%);
+    opacity: 0;
   }
   
   .modal-info h3 {
@@ -298,6 +415,93 @@
     color: var(--text-secondary);
   }
   
+  .info-toggle {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1003;
+    transition: background-color 0.2s, transform 0.2s;
+  }
+  
+  .info-toggle:hover {
+    background: rgba(0, 0, 0, 0.9);
+    transform: scale(1.1);
+  }
+  
+  .menu-toggle {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1003;
+    transition: background-color 0.2s, transform 0.2s;
+  }
+  
+  .menu-toggle:hover {
+    background: rgba(0, 0, 0, 0.9);
+    transform: scale(1.1);
+  }
+  
+  .hamburger-menu {
+    position: absolute;
+    top: 4rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(15px);
+    border-radius: 8px;
+    padding: 0.5rem;
+    z-index: 1004;
+    min-width: 120px;
+  }
+  
+  .menu-item {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: white;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+    text-align: left;
+  }
+  
+  .menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    color: #ff3b30;
+  }
+  
   /* Mobile optimizations */
   @media (max-width: 768px) {
     .modal {
@@ -307,27 +511,12 @@
     .modal-content {
       width: 100vw;
       height: 100vh;
-      max-width: 100vw;
-      max-height: 100vh;
-      justify-content: center;
     }
     
     .modal-media-container {
       width: 100vw;
-      height: 85vh;
-      max-width: 100vw;
-      max-height: 85vh;
-    }
-    
-    .modal-info {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(10px);
-      padding: 1rem;
-      margin: 0;
+      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
     }
     
     .modal-close {

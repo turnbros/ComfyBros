@@ -18,7 +18,9 @@ import tempfile
 import subprocess
 
 class GalleryHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, output_dir="../../ComfyUI/output", **kwargs):
+    def __init__(self, *args, output_dir=None, **kwargs):
+        if output_dir is None:
+            output_dir = os.environ.get('COMFY_OUTPUT_DIR', "../../ComfyUI/output")
         self.output_dir = Path(output_dir).resolve()
         self.thumbnail_dir = self.output_dir / "thumbnails"
         self.thumbnail_dir.mkdir(exist_ok=True)
@@ -27,13 +29,22 @@ class GalleryHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # Add CORS headers
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         super().end_headers()
     
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
+    
+    def do_DELETE(self):
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path.startswith('/api/delete/'):
+            self.handle_api_delete(parsed_path.path[12:])  # Remove '/api/delete/'
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def do_GET(self):
         parsed_path = urlparse(self.path)
@@ -248,6 +259,42 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             import traceback
             traceback.print_exc()
             return None
+    
+    def handle_api_delete(self, file_path):
+        """Delete a media file"""
+        try:
+            # Decode URL encoding and resolve the full path
+            import urllib.parse
+            file_path = urllib.parse.unquote(file_path)
+            full_path = self.output_dir / file_path
+            
+            # Security check: make sure the file is within the output directory
+            if not str(full_path.resolve()).startswith(str(self.output_dir.resolve())):
+                self.send_error(403, "Access denied")
+                return
+            
+            # Check if file exists
+            if not full_path.exists():
+                self.send_error(404, "File not found")
+                return
+            
+            # Delete the file
+            full_path.unlink()
+            
+            # Also delete the thumbnail if it exists
+            thumbnail_path = self.get_thumbnail_path(full_path)
+            if thumbnail_path.exists():
+                thumbnail_path.unlink()
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'message': 'File deleted successfully'}).encode())
+            
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+            self.send_error(500, f"Error deleting file: {str(e)}")
 
 
 def main():
