@@ -7,6 +7,7 @@ import os
 import json
 import mimetypes
 import hashlib
+import io
 from datetime import datetime
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -195,7 +196,7 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                         if img.mode in ('RGBA', 'P'):
                             img = img.convert('RGB')
                         
-                        with tempfile.BytesIO() as output:
+                        with io.BytesIO() as output:
                             img.save(output, format='JPEG', quality=85)
                             thumbnail_data = output.getvalue()
                             print(f"Generated thumbnail data: {len(thumbnail_data)} bytes")
@@ -217,7 +218,7 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                         
                         with Image.open(temp_file.name) as img:
                             img.thumbnail(size, Image.Resampling.LANCZOS)
-                            with tempfile.BytesIO() as output:
+                            with io.BytesIO() as output:
                                 img.save(output, format='JPEG', quality=85)
                                 thumbnail_data = output.getvalue()
                                 os.unlink(temp_file.name)
