@@ -91,18 +91,25 @@ class MediaGallery {
 
         modalContent.addEventListener('touchstart', (e) => {
             if (!this.elements.modal.classList.contains('hidden')) {
+                // Don't interfere with UI controls
+                if (this.isUIElement(e.target)) {
+                    return;
+                }
+                
                 touchStartY = e.touches[0].clientY;
                 touchStartX = e.touches[0].clientX;
                 touchStartTime = Date.now();
                 isScrolling = false;
-                
-                // Prevent background scrolling
-                e.preventDefault();
             }
-        }, { passive: false });
+        }, { passive: true });
 
         modalContent.addEventListener('touchmove', (e) => {
             if (!this.elements.modal.classList.contains('hidden')) {
+                // Don't interfere with UI controls
+                if (this.isUIElement(e.target)) {
+                    return;
+                }
+                
                 const touchY = e.touches[0].clientY;
                 const touchX = e.touches[0].clientX;
                 const deltaY = Math.abs(touchY - touchStartY);
@@ -115,13 +122,20 @@ class MediaGallery {
                     isScrolling = true; // Vertical scroll
                 }
 
-                // Prevent background scrolling
-                e.preventDefault();
+                // Only prevent default for image/video area, not UI controls
+                if (!this.isUIElement(e.target)) {
+                    e.preventDefault();
+                }
             }
         }, { passive: false });
 
         modalContent.addEventListener('touchend', (e) => {
             if (!this.elements.modal.classList.contains('hidden')) {
+                // Don't interfere with UI controls
+                if (this.isUIElement(e.target)) {
+                    return;
+                }
+                
                 const touchEndY = e.changedTouches[0].clientY;
                 const touchEndX = e.changedTouches[0].clientX;
                 const deltaY = touchEndY - touchStartY;
@@ -147,23 +161,30 @@ class MediaGallery {
                         }
                     }
                 }
-
-                // Prevent background scrolling
-                e.preventDefault();
             }
-        }, { passive: false });
+        }, { passive: true });
 
-        // Prevent scroll on modal when open
-        this.elements.modal.addEventListener('scroll', (e) => {
-            e.preventDefault();
-        });
-
-        // Prevent wheel events on modal
+        // Prevent wheel events on modal (desktop only)
         this.elements.modal.addEventListener('wheel', (e) => {
-            if (!this.elements.modal.classList.contains('hidden')) {
+            if (!this.elements.modal.classList.contains('hidden') && !this.isUIElement(e.target)) {
                 e.preventDefault();
             }
         }, { passive: false });
+    }
+
+    isUIElement(element) {
+        // Check if the touch target is a UI control that should remain interactive
+        const uiSelectors = [
+            '.modal-close',
+            '.nav-btn',
+            '.modal-info',
+            'button',
+            'video'
+        ];
+        
+        return uiSelectors.some(selector => {
+            return element.matches?.(selector) || element.closest?.(selector);
+        });
     }
 
     async loadFromServer() {
