@@ -2,6 +2,7 @@
   import { filteredMedia, sortOption, filterOption, modalOpen, currentIndex } from './stores.js'
   import Modal from './Modal.svelte'
   import MediaItem from './MediaItem.svelte'
+  import JobQueue from './JobQueue.svelte'
   
   function openModal(index) {
     currentIndex.set(index)
@@ -62,6 +63,8 @@
         <option value="images">Images Only</option>
         <option value="videos">Videos Only</option>
       </select>
+      
+      <JobQueue />
     </div>
   </header>
   

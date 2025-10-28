@@ -10,6 +10,8 @@
   let showMenu = false
   let isZoomed = false
   let mediaElement = null
+  let isDoubleTabZoomed = false
+  let lastTap = 0
   
   function closeModal() {
     modalOpen.set(false)
@@ -87,18 +89,60 @@
     }
   }
   
+  function handleDoubleTap(event) {
+    const currentTime = new Date().getTime()
+    const tapLength = currentTime - lastTap
+    
+    // Only process if it's actually a double tap (between 50ms and 500ms)
+    if (tapLength < 500 && tapLength > 50) {
+      // This is a double tap
+      event.preventDefault()
+      event.stopPropagation()
+      toggleDoubleTabZoom()
+    }
+    
+    lastTap = currentTime
+  }
+  
+  function toggleDoubleTabZoom() {
+    if (!mediaElement) return
+    
+    isDoubleTabZoomed = !isDoubleTabZoomed
+    isZoomed = isDoubleTabZoomed
+    
+    if (isDoubleTabZoomed) {
+      // Zoom in - scale to 2x
+      mediaElement.style.transform = 'scale(2)'
+      mediaElement.style.cursor = 'grab'
+      console.log('Double-tap zoom: IN')
+    } else {
+      // Zoom out - reset to normal
+      mediaElement.style.transform = 'scale(1)'
+      mediaElement.style.cursor = 'default'
+      console.log('Double-tap zoom: OUT')
+    }
+  }
+  
   function handleMediaLoad(event) {
     mediaElement = event.target
     // Reset zoom state for new media
     isZoomed = false
     isPinching = false
     activeTouches = 0
+    isDoubleTabZoomed = false
     
-    // Add touch listeners to detect pinch gestures
+    // Reset any existing transforms
+    if (mediaElement) {
+      mediaElement.style.transform = 'scale(1)'
+      mediaElement.style.cursor = 'default'
+    }
+    
+    // Add touch listeners to detect pinch gestures and double taps
     if (mediaElement) {
       mediaElement.addEventListener('touchstart', handleTouchStart, { passive: true })
       mediaElement.addEventListener('touchmove', handleTouchMove, { passive: true })
       mediaElement.addEventListener('touchend', handleTouchEnd, { passive: true })
+      mediaElement.addEventListener('click', handleDoubleTap)
     }
   }
   
@@ -185,6 +229,10 @@
       case 'm':
       case 'M':
         toggleMenu()
+        break
+      case 'z':
+      case 'Z':
+        toggleDoubleTabZoom()
         break
     }
   }
@@ -288,12 +336,14 @@
                 src={$currentMedia.url} 
                 alt={$currentMedia.name}
                 class="modal-image"
+                class:zoomed={isDoubleTabZoomed}
                 on:load={handleMediaLoad}
               />
             {:else}
               <video 
                 src={$currentMedia.url}
                 class="modal-video"
+                class:zoomed={isDoubleTabZoomed}
                 controls
                 autoplay
                 muted
@@ -450,9 +500,19 @@
     object-fit: contain;
     border-radius: 8px;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
+    cursor: pointer;
   }
   
-  .modal-image:hover, .modal-video:hover {
+  .modal-image.zoomed, .modal-video.zoomed {
+    cursor: grab;
+  }
+  
+  .modal-image.zoomed:active, .modal-video.zoomed:active {
+    cursor: grabbing;
+  }
+  
+  .modal-image:hover:not(.zoomed), .modal-video:hover:not(.zoomed) {
     transform: scale(1.02);
   }
   

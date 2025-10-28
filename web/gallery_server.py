@@ -51,6 +51,9 @@ class GalleryHandler(SimpleHTTPRequestHandler):
         
         if parsed_path.path == '/api/generate':
             self.handle_api_generate()
+        elif parsed_path.path.startswith('/api/jobs/') and parsed_path.path.endswith('/cancel'):
+            job_id = parsed_path.path.split('/')[-2]
+            self.handle_api_job_cancel(job_id)
         else:
             self.send_response(404)
             self.end_headers()
@@ -64,6 +67,8 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             self.handle_api_file(parsed_path.path[10:])  # Remove '/api/file/'
         elif parsed_path.path.startswith('/api/thumbnail/'):
             self.handle_api_thumbnail(parsed_path.path[15:])  # Remove '/api/thumbnail/'
+        elif parsed_path.path == '/api/jobs':
+            self.handle_api_jobs()
         else:
             # Serve static files from web directory
             super().do_GET()
@@ -347,6 +352,96 @@ class GalleryHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"Error triggering generation: {e}")
             self.send_error(500, f"Error triggering generation: {str(e)}")
+    
+    def get_jobs_file_path(self):
+        """Get the path to the jobs file"""
+        return self.output_dir.parent / "jobs.json"
+    
+    def load_jobs(self):
+        """Load jobs from the jobs file"""
+        try:
+            jobs_file = self.get_jobs_file_path()
+            if jobs_file.exists():
+                with open(jobs_file, 'r') as f:
+                    return json.load(f)
+            return []
+        except Exception as e:
+            print(f"Error loading jobs: {e}")
+            return []
+    
+    def save_jobs(self, jobs):
+        """Save jobs to the jobs file"""
+        try:
+            jobs_file = self.get_jobs_file_path()
+            with open(jobs_file, 'w') as f:
+                json.dump(jobs, f, indent=2)
+        except Exception as e:
+            print(f"Error saving jobs: {e}")
+    
+    def handle_api_jobs(self):
+        """Return the current job queue"""
+        try:
+            jobs = self.load_jobs()
+            
+            # Add some mock jobs for demonstration if empty
+            if not jobs:
+                jobs = [
+                    {
+                        "id": "job_001",
+                        "name": "Landscape Generation",
+                        "status": "running",
+                        "created": datetime.now().isoformat(),
+                        "progress": 65
+                    },
+                    {
+                        "id": "job_002", 
+                        "name": "Portrait Generation",
+                        "status": "pending",
+                        "created": datetime.now().isoformat()
+                    },
+                    {
+                        "id": "job_003",
+                        "name": "Style Transfer",
+                        "status": "completed",
+                        "created": (datetime.now().replace(hour=datetime.now().hour-1)).isoformat()
+                    }
+                ]
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"jobs": jobs}).encode())
+            
+        except Exception as e:
+            print(f"Error getting jobs: {e}")
+            self.send_error(500, f"Error getting jobs: {str(e)}")
+    
+    def handle_api_job_cancel(self, job_id):
+        """Cancel a specific job"""
+        try:
+            jobs = self.load_jobs()
+            
+            # Find and update the job
+            job_found = False
+            for job in jobs:
+                if job['id'] == job_id:
+                    if job['status'] in ['pending', 'running']:
+                        job['status'] = 'cancelled'
+                        job_found = True
+                        break
+            
+            if job_found:
+                self.save_jobs(jobs)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': f'Job {job_id} cancelled'}).encode())
+            else:
+                self.send_error(404, "Job not found or cannot be cancelled")
+                
+        except Exception as e:
+            print(f"Error cancelling job: {e}")
+            self.send_error(500, f"Error cancelling job: {str(e)}")
 
 
 def main():
