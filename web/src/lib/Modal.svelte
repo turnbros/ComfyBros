@@ -18,9 +18,21 @@
   }
   
   function navigate(direction) {
-    if (isTransitioning || isZoomed) return // Prevent navigation when zoomed or transitioning
+    console.log('Navigate called, direction:', direction, 'isTransitioning:', isTransitioning, 'isZoomed:', isZoomed)
+    
+    if (isTransitioning || isZoomed) {
+      console.log('Navigation blocked')
+      return // Prevent navigation when zoomed or transitioning
+    }
     
     isTransitioning = true
+    
+    // Reset zoom states when switching media
+    isZoomed = false
+    isDoubleTabZoomed = false
+    isPinching = false
+    activeTouches = 0
+    
     const maxIndex = $filteredMedia.length - 1
     let newIndex = $currentIndex + direction
     
@@ -30,6 +42,7 @@
       newIndex = 0
     }
     
+    console.log('Navigating from', $currentIndex, 'to', newIndex)
     currentIndex.set(newIndex)
     
     // Reset transition flag after animation
@@ -80,7 +93,7 @@
     if (activeTouches === 0) {
       // All touches ended - check if we should reset zoom state
       setTimeout(() => {
-        if (activeTouches === 0 && !isPinching) {
+        if (activeTouches === 0 && !isPinching && !isDoubleTabZoomed) {
           isZoomed = false
           console.log('Navigation re-enabled')
         }
@@ -135,6 +148,15 @@
     if (mediaElement) {
       mediaElement.style.transform = 'scale(1)'
       mediaElement.style.cursor = 'default'
+      
+      // Force autoplay for videos
+      if (mediaElement.tagName === 'VIDEO') {
+        setTimeout(() => {
+          mediaElement.play().catch(e => {
+            console.log('Autoplay prevented:', e)
+          })
+        }, 100)
+      }
     }
     
     // Add touch listeners to detect pinch gestures and double taps
@@ -312,10 +334,22 @@
     class="modal" 
     style="--bg-image: url({$currentMedia.url})"
     use:swipe={{
-      onSwipeLeft: () => !isZoomed && nextImage(),
-      onSwipeRight: () => !isZoomed && previousImage(),
-      onSwipeUp: () => !isZoomed && nextImage(),
-      onSwipeDown: () => !isZoomed && previousImage()
+      onSwipeLeft: () => {
+        console.log('Swipe left detected, isZoomed:', isZoomed)
+        if (!isZoomed) nextImage()
+      },
+      onSwipeRight: () => {
+        console.log('Swipe right detected, isZoomed:', isZoomed)
+        if (!isZoomed) previousImage()
+      },
+      onSwipeUp: () => {
+        console.log('Swipe up detected, isZoomed:', isZoomed)
+        if (!isZoomed) nextImage()
+      },
+      onSwipeDown: () => {
+        console.log('Swipe down detected, isZoomed:', isZoomed)
+        if (!isZoomed) previousImage()
+      }
     }}
     on:click={closeModal}
     on:keydown={handleKeydown}
