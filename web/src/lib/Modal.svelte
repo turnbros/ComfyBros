@@ -92,10 +92,12 @@
       onSwipeDown: previousImage
     }}
     on:click={closeModal}
+    on:keydown={handleKeydown}
     role="dialog"
     aria-modal="true"
+    tabindex="-1"
   >
-    <div class="modal-content" on:click|stopPropagation>
+    <div class="modal-content" on:click|stopPropagation on:keydown role="button" tabindex="0">
       <button class="modal-close" on:click={closeModal} aria-label="Close">
         ×
       </button>
@@ -114,8 +116,9 @@
                 src={$currentMedia.url}
                 class="modal-video"
                 controls
-                preload="metadata"
-              />
+                preload="metadata">
+                <track kind="captions" src="" label="No captions available" />
+              </video>
             {/if}
           </div>
         {/key}

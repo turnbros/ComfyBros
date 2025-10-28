@@ -2,6 +2,7 @@
   "name": "web",
   "version": "1.0.0",
   "description": "A mobile-friendly web gallery for reviewing images and videos generated with ComfyUI.",
+  "type": "module",
   "main": "comfy-bros.js",
   "scripts": {
     "dev": "vite",
