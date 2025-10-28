@@ -182,8 +182,8 @@ def main():
     # Change to web directory to serve static files
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     
-    def handler(*args, **kwargs):
-        return GalleryHandler(*args, output_dir=args.output_dir, **kwargs)
+    def handler(*handler_args, **handler_kwargs):
+        return GalleryHandler(*handler_args, output_dir=args.output_dir, **handler_kwargs)
     
     httpd = HTTPServer((args.host, args.port), handler)
     print(f"Gallery server running at http://{args.host}:{args.port}")
