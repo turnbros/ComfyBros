@@ -370,6 +370,9 @@ class MediaGallery {
             this.elements.modalImage.style.display = 'none';
         }
 
+        // Set frosted glass background
+        this.elements.modal.style.setProperty('--bg-image', `url(${item.url})`);
+        
         this.elements.modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
 
