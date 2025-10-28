@@ -56,9 +56,8 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             for root, dirs, filenames in os.walk(self.output_dir):
                 root_path = Path(root)
                 
-                # Remove thumbnails directory from the dirs list to prevent traversal
-                if 'thumbnails' in dirs:
-                    dirs.remove('thumbnails')
+                # Remove hidden directories and thumbnails directory from traversal
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d != 'thumbnails']
                 
                 # Skip the thumbnails directory and any subdirectories
                 if self.thumbnail_dir in root_path.parents or root_path == self.thumbnail_dir:
