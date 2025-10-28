@@ -1,173 +1,35 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
   import { modalOpen, currentIndex, currentMedia, filteredMedia, mediaStore } from './stores.js'
-  import { swipe } from './gestures.js'
   import { fade } from 'svelte/transition'
   
+  let swiperInstance
+  let swiperContainer
   let scrollY = 0
-  let isTransitioning = false
   let showInfo = true
   let showMenu = false
-  let isZoomed = false
-  let mediaElement = null
-  let isDoubleTabZoomed = false
-  let lastTap = 0
-  
+  let currentSlideIndex = $currentIndex
+
   function closeModal() {
     modalOpen.set(false)
   }
-  
-  function navigate(direction) {
-    console.log('Navigate called, direction:', direction, 'isTransitioning:', isTransitioning, 'isZoomed:', isZoomed)
-    
-    if (isTransitioning || isZoomed) {
-      console.log('Navigation blocked')
-      return // Prevent navigation when zoomed or transitioning
+
+  function onSlideChange() {
+    if (swiperInstance) {
+      const realIndex = swiperInstance.realIndex !== undefined ? swiperInstance.realIndex : swiperInstance.activeIndex
+      currentSlideIndex = realIndex
+      currentIndex.set(realIndex)
     }
-    
-    isTransitioning = true
-    
-    // Reset zoom states when switching media
-    isZoomed = false
-    isDoubleTabZoomed = false
-    isPinching = false
-    activeTouches = 0
-    
-    const maxIndex = $filteredMedia.length - 1
-    let newIndex = $currentIndex + direction
-    
-    if (newIndex < 0) {
-      newIndex = maxIndex
-    } else if (newIndex > maxIndex) {
-      newIndex = 0
-    }
-    
-    console.log('Navigating from', $currentIndex, 'to', newIndex)
-    currentIndex.set(newIndex)
-    
-    // Reset transition flag after animation
-    setTimeout(() => {
-      isTransitioning = false
-    }, 300)
   }
-  
-  function previousImage() {
-    navigate(-1)
-  }
-  
-  function nextImage() {
-    navigate(1)
-  }
-  
+
   function toggleInfo() {
     showInfo = !showInfo
   }
-  
+
   function toggleMenu() {
     showMenu = !showMenu
   }
-  
-  let activeTouches = 0
-  let isPinching = false
-  
-  function handleTouchStart(event) {
-    activeTouches = event.touches.length
-    
-    if (activeTouches === 2) {
-      isPinching = true
-      isZoomed = true
-      console.log('Pinch started - navigation disabled')
-    }
-  }
-  
-  function handleTouchMove(event) {
-    if (event.touches.length === 2) {
-      isPinching = true
-      isZoomed = true
-    }
-  }
-  
-  function handleTouchEnd(event) {
-    activeTouches = event.touches.length
-    
-    if (activeTouches === 0) {
-      // All touches ended - check if we should reset zoom state
-      setTimeout(() => {
-        if (activeTouches === 0 && !isPinching && !isDoubleTabZoomed) {
-          isZoomed = false
-          console.log('Navigation re-enabled')
-        }
-        isPinching = false
-      }, 300) // Delay to allow for gesture completion
-    }
-  }
-  
-  function handleDoubleTap(event) {
-    const currentTime = new Date().getTime()
-    const tapLength = currentTime - lastTap
-    
-    // Only process if it's actually a double tap (between 50ms and 500ms)
-    if (tapLength < 500 && tapLength > 50) {
-      // This is a double tap
-      event.preventDefault()
-      event.stopPropagation()
-      toggleDoubleTabZoom()
-    }
-    
-    lastTap = currentTime
-  }
-  
-  function toggleDoubleTabZoom() {
-    if (!mediaElement) return
-    
-    isDoubleTabZoomed = !isDoubleTabZoomed
-    isZoomed = isDoubleTabZoomed
-    
-    if (isDoubleTabZoomed) {
-      // Zoom in - scale to 2x
-      mediaElement.style.transform = 'scale(2)'
-      mediaElement.style.cursor = 'grab'
-      console.log('Double-tap zoom: IN')
-    } else {
-      // Zoom out - reset to normal
-      mediaElement.style.transform = 'scale(1)'
-      mediaElement.style.cursor = 'default'
-      console.log('Double-tap zoom: OUT')
-    }
-  }
-  
-  function handleMediaLoad(event) {
-    mediaElement = event.target
-    // Reset zoom state for new media
-    isZoomed = false
-    isPinching = false
-    activeTouches = 0
-    isDoubleTabZoomed = false
-    
-    // Reset any existing transforms
-    if (mediaElement) {
-      mediaElement.style.transform = 'scale(1)'
-      mediaElement.style.cursor = 'default'
-      
-      // Force autoplay for videos
-      if (mediaElement.tagName === 'VIDEO') {
-        setTimeout(() => {
-          mediaElement.play().catch(e => {
-            console.log('Autoplay prevented:', e)
-          })
-        }, 100)
-      }
-    }
-    
-    // Add touch listeners to detect pinch gestures and double taps
-    if (mediaElement) {
-      mediaElement.addEventListener('touchstart', handleTouchStart, { passive: true })
-      mediaElement.addEventListener('touchmove', handleTouchMove, { passive: true })
-      mediaElement.addEventListener('touchend', handleTouchEnd, { passive: true })
-      mediaElement.addEventListener('click', handleDoubleTap)
-    }
-  }
-  
+
   async function deleteCurrentMedia() {
     if (!confirm(`Are you sure you want to delete ${$currentMedia.name}?`)) {
       return
@@ -194,6 +56,9 @@
           // Adjust index if we deleted the last item
           const newIndex = currentIdx >= newArray.length ? newArray.length - 1 : currentIdx
           currentIndex.set(newIndex)
+          if (swiperInstance) {
+            swiperInstance.slideTo(newIndex)
+          }
         }
         
         showMenu = false
@@ -205,7 +70,7 @@
       alert('Error deleting file')
     }
   }
-  
+
   async function generateNewImage() {
     try {
       showMenu = false
@@ -232,17 +97,17 @@
       alert('Error starting generation')
     }
   }
-  
+
   function handleKeydown(event) {
     switch (event.key) {
       case 'Escape':
         closeModal()
         break
       case 'ArrowLeft':
-        previousImage()
+        if (swiperInstance) swiperInstance.slidePrev()
         break
       case 'ArrowRight':
-        nextImage()
+        if (swiperInstance) swiperInstance.slideNext()
         break
       case 'i':
       case 'I':
@@ -252,27 +117,59 @@
       case 'M':
         toggleMenu()
         break
-      case 'z':
-      case 'Z':
-        toggleDoubleTabZoom()
-        break
     }
   }
-  
+
   function formatDate(date) {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit'
     })
   }
-  
+
+  function handleVideoLoad(event) {
+    const video = event.target
+    // Force autoplay for videos
+    setTimeout(() => {
+      video.play().catch(e => {
+        console.log('Autoplay prevented:', e)
+      })
+    }, 100)
+  }
+
   // Prevent body scrolling when modal is open
-  onMount(() => {
+  onMount(async () => {
     scrollY = window.scrollY
     document.body.style.position = 'fixed'
     document.body.style.width = '100%'
     document.body.style.top = `-${scrollY}px`
     document.body.style.overflow = 'hidden'
+    
+    // Import Swiper dynamically to avoid SSR issues
+    const Swiper = (await import('swiper/bundle')).default
+    await import('swiper/css/bundle')
+    
+    // Initialize Swiper
+    if (swiperContainer) {
+      swiperInstance = new Swiper(swiperContainer, {
+        initialSlide: $currentIndex,
+        spaceBetween: 0,
+        slidesPerView: 1,
+        loop: $filteredMedia.length > 1,
+        navigation: {
+          prevEl: '.swiper-button-prev',
+          nextEl: '.swiper-button-next',
+        },
+        zoom: {
+          maxRatio: 3,
+          minRatio: 1,
+          toggle: true,
+        },
+        on: {
+          slideChange: onSlideChange,
+        }
+      })
+    }
     
     // Force Safari fullscreen behavior
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -297,15 +194,6 @@
       
       // Force minimal UI on touch
       document.addEventListener('touchstart', hideSafariUI, { once: true })
-      
-      // Try to enter fullscreen mode
-      setTimeout(() => {
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {})
-        } else if (document.documentElement.webkitRequestFullscreen) {
-          document.documentElement.webkitRequestFullscreen().catch(() => {})
-        }
-      }, 500)
     }
     
     // Set CSS custom properties for proper viewport height
@@ -319,38 +207,29 @@
   })
   
   onDestroy(() => {
+    if (swiperInstance) {
+      swiperInstance.destroy(true, true)
+    }
     document.body.style.position = ''
     document.body.style.width = ''
     document.body.style.top = ''
     document.body.style.overflow = ''
     window.scrollTo(0, scrollY)
   })
+
+  // Update swiper when currentIndex changes externally
+  $: if (swiperInstance && $currentIndex !== currentSlideIndex) {
+    swiperInstance.slideTo($currentIndex)
+    currentSlideIndex = $currentIndex
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
 
-{#if $currentMedia}
+{#if $filteredMedia.length > 0}
   <div 
     class="modal" 
-    style="--bg-image: url({$currentMedia.url})"
-    use:swipe={{
-      onSwipeLeft: () => {
-        console.log('Swipe left detected, isZoomed:', isZoomed)
-        if (!isZoomed) nextImage()
-      },
-      onSwipeRight: () => {
-        console.log('Swipe right detected, isZoomed:', isZoomed)
-        if (!isZoomed) previousImage()
-      },
-      onSwipeUp: () => {
-        console.log('Swipe up detected, isZoomed:', isZoomed)
-        if (!isZoomed) nextImage()
-      },
-      onSwipeDown: () => {
-        console.log('Swipe down detected, isZoomed:', isZoomed)
-        if (!isZoomed) previousImage()
-      }
-    }}
+    style="--bg-image: url({$currentMedia?.url})"
     on:click={closeModal}
     on:keydown={handleKeydown}
     role="dialog"
@@ -362,42 +241,46 @@
         ×
       </button>
       
-      <div class="modal-media-container">
-        {#key $currentIndex}
-          <div class="media-wrapper" in:fade={{ duration: 300, delay: 150 }} out:fade={{ duration: 150 }}>
-            {#if $currentMedia.type === 'image'}
-              <img 
-                src={$currentMedia.url} 
-                alt={$currentMedia.name}
-                class="modal-image"
-                class:zoomed={isDoubleTabZoomed}
-                on:load={handleMediaLoad}
-              />
-            {:else}
-              <video 
-                src={$currentMedia.url}
-                class="modal-video"
-                class:zoomed={isDoubleTabZoomed}
-                controls
-                autoplay
-                muted
-                loop
-                playsinline
-                preload="metadata"
-                on:loadedmetadata={handleMediaLoad}>
-                <track kind="captions" src="" label="No captions available" />
-              </video>
-            {/if}
-          </div>
-        {/key}
+      <div class="swiper" bind:this={swiperContainer}>
+        <div class="swiper-wrapper">
+          {#each $filteredMedia as item, index (item.path)}
+            <div class="swiper-slide">
+              <div class="swiper-zoom-container">
+                {#if item.type === 'image'}
+                  <img 
+                    src={item.url} 
+                    alt={item.name}
+                    class="modal-image"
+                  />
+                {:else}
+                  <video 
+                    src={item.url}
+                    class="modal-video"
+                    controls
+                    autoplay
+                    muted
+                    loop
+                    playsinline
+                    preload="metadata"
+                    on:loadedmetadata={handleVideoLoad}>
+                    <track kind="captions" src="" label="No captions available" />
+                  </video>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
         
+        <!-- Navigation buttons -->
+        <div class="swiper-button-prev"></div>
+        <div class="swiper-button-next"></div>
       </div>
       
       <div class="modal-info" class:hidden={!showInfo}>
-        <h3>{$currentMedia.name}</h3>
+        <h3>{$currentMedia?.name}</h3>
         <div class="modal-details">
-          <span>{$currentMedia.size}</span>
-          <span>{formatDate($currentMedia.date)}</span>
+          <span>{$currentMedia?.size}</span>
+          <span>{$currentMedia ? formatDate($currentMedia.date) : ''}</span>
         </div>
       </div>
       
@@ -434,6 +317,48 @@
 {/if}
 
 <style>
+  :global(.swiper) {
+    width: 100%;
+    height: 100%;
+  }
+
+  :global(.swiper-slide) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: transparent;
+  }
+
+  :global(.swiper-zoom-container) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  :global(.swiper-button-next),
+  :global(.swiper-button-prev) {
+    color: white !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 50% !important;
+    width: 44px !important;
+    height: 44px !important;
+    margin-top: -22px !important;
+  }
+
+  :global(.swiper-button-next:after),
+  :global(.swiper-button-prev:after) {
+    font-size: 16px !important;
+    font-weight: bold !important;
+  }
+
+  :global(.swiper-button-next:hover),
+  :global(.swiper-button-prev:hover) {
+    background: rgba(0, 0, 0, 0.8) !important;
+  }
+
   .modal {
     position: fixed;
     top: 0;
@@ -504,28 +429,7 @@
     padding: 0.5rem;
     line-height: 1;
   }
-  
-  .modal-media-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
-  
-  .media-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-  
+
   .modal-image, .modal-video {
     max-width: 100%;
     max-height: 100%;
@@ -533,63 +437,6 @@
     height: auto;
     object-fit: contain;
     border-radius: 8px;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    transform-origin: center;
-    cursor: pointer;
-  }
-  
-  .modal-image.zoomed, .modal-video.zoomed {
-    cursor: grab;
-  }
-  
-  .modal-image.zoomed:active, .modal-video.zoomed:active {
-    cursor: grabbing;
-  }
-  
-  .modal-image:hover:not(.zoomed), .modal-video:hover:not(.zoomed) {
-    transform: scale(1.02);
-  }
-  
-  .modal-nav {
-    position: absolute;
-    top: 50%;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    z-index: 1001;
-    pointer-events: none;
-  }
-  
-  .nav-btn {
-    background-color: rgba(0, 0, 0, 0.7);
-    border: none;
-    color: white;
-    font-size: 2rem;
-    padding: 1rem;
-    cursor: pointer;
-    border-radius: 50%;
-    width: 3rem;
-    height: 3rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: all;
-    transition: background-color 0.2s;
-    line-height: 1;
-  }
-  
-  .nav-btn:hover:not(:disabled) {
-    background-color: rgba(0, 0, 0, 0.9);
-    transform: scale(1.1);
-  }
-  
-  .nav-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  .nav-btn {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
   .modal-info {
@@ -727,12 +574,6 @@
       height: 100vh;
     }
     
-    .modal-media-container {
-      width: 100vw;
-      height: 100vh;
-      height: calc(var(--vh, 1vh) * 100);
-    }
-    
     .modal-close {
       position: fixed;
       top: 1rem;
@@ -747,49 +588,38 @@
       justify-content: center;
     }
     
-    .nav-btn {
-      background-color: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(10px);
-      font-size: 1.5rem;
-      width: 2.5rem;
-      height: 2.5rem;
-      padding: 0.5rem;
-    }
-    
     .modal-details {
       flex-direction: column;
       gap: 0.5rem;
     }
-    
-    .modal-image:hover, .modal-video:hover {
-      transform: none;
-    }
   }
   
   @media (max-width: 480px) {
-    .controls {
-      gap: 0.5rem;
+    :global(.swiper-button-next),
+    :global(.swiper-button-prev) {
+      width: 36px !important;
+      height: 36px !important;
+      margin-top: -18px !important;
     }
     
-    .btn, .select {
-      padding: 0.8rem;
+    :global(.swiper-button-next:after),
+    :global(.swiper-button-prev:after) {
+      font-size: 14px !important;
     }
   }
   
   /* Touch-friendly interactions */
   @media (hover: none) and (pointer: coarse) {
-    .modal-image:hover, .modal-video:hover {
-      transform: none;
+    :global(.swiper-button-next:hover),
+    :global(.swiper-button-prev:hover) {
+      background: rgba(0, 0, 0, 0.5) !important;
     }
-    
-    .nav-btn:hover {
-      transform: none;
-      background-color: rgba(0, 0, 0, 0.7);
-    }
-    
-    .nav-btn:active:not(:disabled) {
-      transform: scale(0.95);
-      background-color: rgba(0, 0, 0, 0.9);
-    }
+  }
+
+  /* Hide navigation buttons when zoomed to avoid interference */
+  :global(.swiper-slide-zoomed .swiper-button-next),
+  :global(.swiper-slide-zoomed .swiper-button-prev) {
+    opacity: 0;
+    pointer-events: none;
   }
 </style>
