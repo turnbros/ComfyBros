@@ -55,6 +55,9 @@ class MediaGallery {
             this.navigateModal(1);
         });
 
+        // Touch/swipe handling for mobile
+        this.setupTouchHandling();
+
         // Close modal on escape key or click outside
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -76,6 +79,91 @@ class MediaGallery {
         this.elements.modalVideo.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
+    }
+
+    setupTouchHandling() {
+        let touchStartY = 0;
+        let touchStartX = 0;
+        let touchStartTime = 0;
+        let isScrolling = false;
+
+        const modalContent = this.elements.modal;
+
+        modalContent.addEventListener('touchstart', (e) => {
+            if (!this.elements.modal.classList.contains('hidden')) {
+                touchStartY = e.touches[0].clientY;
+                touchStartX = e.touches[0].clientX;
+                touchStartTime = Date.now();
+                isScrolling = false;
+                
+                // Prevent background scrolling
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        modalContent.addEventListener('touchmove', (e) => {
+            if (!this.elements.modal.classList.contains('hidden')) {
+                const touchY = e.touches[0].clientY;
+                const touchX = e.touches[0].clientX;
+                const deltaY = Math.abs(touchY - touchStartY);
+                const deltaX = Math.abs(touchX - touchStartX);
+
+                // Determine if this is a scroll gesture
+                if (deltaX > deltaY && deltaX > 10) {
+                    isScrolling = false; // Horizontal swipe
+                } else if (deltaY > 10) {
+                    isScrolling = true; // Vertical scroll
+                }
+
+                // Prevent background scrolling
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        modalContent.addEventListener('touchend', (e) => {
+            if (!this.elements.modal.classList.contains('hidden')) {
+                const touchEndY = e.changedTouches[0].clientY;
+                const touchEndX = e.changedTouches[0].clientX;
+                const deltaY = touchEndY - touchStartY;
+                const deltaX = touchEndX - touchStartX;
+                const touchDuration = Date.now() - touchStartTime;
+
+                // Only process swipes, not scrolls
+                if (!isScrolling && touchDuration < 500) {
+                    // Vertical swipes (up/down)
+                    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 50) {
+                        if (deltaY < -50) { // Swipe up - next image
+                            this.navigateModal(1);
+                        } else if (deltaY > 50) { // Swipe down - previous image
+                            this.navigateModal(-1);
+                        }
+                    }
+                    // Horizontal swipes (left/right)
+                    else if (Math.abs(deltaX) > 50) {
+                        if (deltaX < -50) { // Swipe left - next image
+                            this.navigateModal(1);
+                        } else if (deltaX > 50) { // Swipe right - previous image
+                            this.navigateModal(-1);
+                        }
+                    }
+                }
+
+                // Prevent background scrolling
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Prevent scroll on modal when open
+        this.elements.modal.addEventListener('scroll', (e) => {
+            e.preventDefault();
+        });
+
+        // Prevent wheel events on modal
+        this.elements.modal.addEventListener('wheel', (e) => {
+            if (!this.elements.modal.classList.contains('hidden')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     }
 
     async loadFromServer() {
@@ -375,6 +463,11 @@ class MediaGallery {
         
         this.elements.modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        
+        // Prevent touch scrolling on body
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.style.top = `-${window.scrollY}px`;
 
         // Update navigation buttons
         this.elements.prevBtn.style.display = this.filteredFiles.length > 1 ? 'flex' : 'none';
@@ -384,7 +477,17 @@ class MediaGallery {
     closeModal() {
         this.elements.modal.classList.add('hidden');
         this.elements.modalVideo.pause();
+        
+        // Restore body scrolling
+        const scrollY = document.body.style.top;
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.top = '';
         document.body.style.overflow = '';
+        
+        if (scrollY) {
+            window.scrollTo(0, parseInt(scrollY || '0') * -1);
+        }
     }
 
     navigateModal(direction) {
@@ -435,35 +538,3 @@ class MediaGallery {
 document.addEventListener('DOMContentLoaded', () => {
     new MediaGallery();
 });
-
-// Add touch gesture support for mobile navigation in modal
-let touchStartX = 0;
-let touchEndX = 0;
-
-document.addEventListener('touchstart', (e) => {
-    if (!document.getElementById('modal').classList.contains('hidden')) {
-        touchStartX = e.changedTouches[0].screenX;
-    }
-});
-
-document.addEventListener('touchend', (e) => {
-    if (!document.getElementById('modal').classList.contains('hidden')) {
-        touchEndX = e.changedTouches[0].screenX;
-        handleSwipe();
-    }
-});
-
-function handleSwipe() {
-    const swipeThreshold = 50;
-    const diff = touchStartX - touchEndX;
-    
-    if (Math.abs(diff) > swipeThreshold) {
-        if (diff > 0) {
-            // Swiped left - next image
-            document.getElementById('nextBtn').click();
-        } else {
-            // Swiped right - previous image
-            document.getElementById('prevBtn').click();
-        }
-    }
-}
