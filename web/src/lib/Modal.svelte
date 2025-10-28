@@ -129,12 +129,31 @@
 
   function handleVideoLoad(event) {
     const video = event.target
-    // Force autoplay for videos
-    setTimeout(() => {
+    // Force autoplay for videos with multiple attempts
+    const playVideo = () => {
       video.play().catch(e => {
         console.log('Autoplay prevented:', e)
+        // Try again with user interaction
+        video.muted = true
+        video.play().catch(err => {
+          console.log('Muted autoplay also failed:', err)
+        })
       })
-    }, 100)
+    }
+    
+    // Try immediately and with delays
+    playVideo()
+    setTimeout(playVideo, 100)
+    setTimeout(playVideo, 500)
+    
+    // Add click handler for iOS
+    const handleFirstPlay = () => {
+      video.play()
+      video.removeEventListener('click', handleFirstPlay)
+      video.removeEventListener('touchstart', handleFirstPlay)
+    }
+    video.addEventListener('click', handleFirstPlay)
+    video.addEventListener('touchstart', handleFirstPlay)
   }
 
   // Prevent body scrolling when modal is open
@@ -156,6 +175,14 @@
         spaceBetween: 0,
         slidesPerView: 1,
         loop: $filteredMedia.length > 1,
+        touchEventsTarget: 'wrapper',
+        allowTouchMove: true,
+        simulateTouch: true,
+        touchRatio: 1,
+        touchAngle: 45,
+        shortSwipes: true,
+        longSwipes: true,
+        threshold: 10,
         navigation: {
           prevEl: '.swiper-button-prev',
           nextEl: '.swiper-button-next',
@@ -164,9 +191,32 @@
           maxRatio: 3,
           minRatio: 1,
           toggle: true,
+          containerClass: 'swiper-zoom-container',
         },
         on: {
           slideChange: onSlideChange,
+          slideChangeTransitionEnd: function(swiper) {
+            // Force video to play when slide becomes active
+            const activeSlide = swiper.slides[swiper.activeIndex]
+            const video = activeSlide?.querySelector('video')
+            if (video) {
+              video.currentTime = 0
+              video.play().catch(e => {
+                console.log('Video autoplay failed on slide change:', e)
+              })
+            }
+          },
+          touchStart: function(swiper, event) {
+            // Allow swiping over videos
+            const target = event.target
+            if (target.tagName === 'VIDEO') {
+              // Prevent video controls from interfering with swipe
+              target.style.pointerEvents = 'none'
+              setTimeout(() => {
+                target.style.pointerEvents = 'auto'
+              }, 300)
+            }
+          },
         }
       })
     }
@@ -262,7 +312,10 @@
                     loop
                     playsinline
                     preload="metadata"
-                    on:loadedmetadata={handleVideoLoad}>
+                    webkit-playsinline="true"
+                    x5-playsinline="true"
+                    on:loadedmetadata={handleVideoLoad}
+                    on:canplay={handleVideoLoad}>
                     <track kind="captions" src="" label="No captions available" />
                   </video>
                 {/if}
@@ -336,6 +389,13 @@
     justify-content: center;
     width: 100%;
     height: 100%;
+    /* Allow touch events to pass through to Swiper for navigation */
+    pointer-events: none;
+  }
+
+  :global(.swiper-zoom-container > *) {
+    /* Re-enable pointer events for media elements */
+    pointer-events: auto;
   }
 
   :global(.swiper-button-next),
@@ -437,6 +497,20 @@
     height: auto;
     object-fit: contain;
     border-radius: 8px;
+  }
+
+  .modal-video {
+    /* Ensure video doesn't interfere with touch events when not zoomed */
+    touch-action: pan-y pinch-zoom;
+  }
+
+  /* Allow swipe gestures to pass through video controls */
+  .modal-video::-webkit-media-controls {
+    pointer-events: auto;
+  }
+
+  .modal-video::-webkit-media-controls-panel {
+    pointer-events: auto;
   }
   
   .modal-info {
