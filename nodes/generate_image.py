@@ -39,6 +39,7 @@ class GenerateImage:
                 ], {"default": "karras"}),
                 "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 512}),
+                "upscale": ("BOOLEAN", {"default": False}),
             }
         }
     
@@ -76,7 +77,7 @@ class GenerateImage:
     def generate(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str,
-                scheduler: str, denoise: float, batch_size: int) -> Tuple[torch.Tensor, str]:
+                scheduler: str, denoise: float, batch_size: int, upscale: bool) -> Tuple[torch.Tensor, str]:
 
         # Get instance configuration
         config = instance_config(instance_name)
@@ -98,6 +99,7 @@ class GenerateImage:
                 "scheduler": scheduler,
                 "denoise": denoise,
                 "batch_size": batch_size,
+                "upscale": upscale
             }
         }
         

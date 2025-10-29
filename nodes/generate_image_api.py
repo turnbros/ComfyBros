@@ -36,6 +36,7 @@ class GenerateImageAPI:
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "karras"}),
                 "workflow_name": ("STRING", {"default": "text_to_image"}),
+                "upscale": ("BOOLEAN", {"default": False}),
             }
         }
     
@@ -89,7 +90,7 @@ class GenerateImageAPI:
     def api_call(self, instance_name: str, positive_prompt: str,
                 negative_prompt: str, checkpoint: str, width: int, height: int,
                 steps: int, cfg: float, seed: int, sampler_name: str,
-                scheduler: str, workflow_name: str) -> Tuple[torch.Tensor, str]:
+                scheduler: str, workflow_name: str, upscale: bool) -> Tuple[torch.Tensor, str]:
 
         config = instance_config(instance_name)
         endpoint = config["endpoint"]
@@ -108,7 +109,8 @@ class GenerateImageAPI:
                     "cfg": cfg,
                     "seed": seed,
                     "sampler_name": sampler_name,
-                    "scheduler": scheduler
+                    "scheduler": scheduler,
+                    "upscale": upscale
                 }
             }
         }

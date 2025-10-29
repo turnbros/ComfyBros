@@ -48,6 +48,7 @@ class WAN22GenerateVideo:
                 "shift": ("INT", {"default": 0, "min": -100, "max": 100}),
                 "low_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_low.safetensors"}),
                 "high_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_high.safetensors"}),
+                "upscale": ("BOOLEAN", {"default": False}),
             }
         }
     
@@ -418,7 +419,7 @@ class WAN22GenerateVideo:
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
                 negative_prompt: str, width: int, height: int, length: int, fps: int,
                 steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str, shift: int, low_model_checkpoint: str, high_model_checkpoint: str ) -> Tuple[torch.Tensor, str]:
+                scheduler: str, shift: int, low_model_checkpoint: str, high_model_checkpoint: str, upscale: bool ) -> Tuple[torch.Tensor, str]:
 
         # Process the input image
         processed_image = self.process_input_image(input_image, None)
@@ -449,7 +450,8 @@ class WAN22GenerateVideo:
                 "scheduler": scheduler,
                 "shift": shift,
                 "low_model_checkpoint": low_model_checkpoint,
-                "high_model_checkpoint": high_model_checkpoint
+                "high_model_checkpoint": high_model_checkpoint,
+                "upscale": upscale,
             }
         }
         
