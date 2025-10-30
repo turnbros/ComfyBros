@@ -14,7 +14,7 @@ from PIL import Image
 from typing import Tuple, List
 import folder_paths
 from ._instance_utils import instance_config, instance_names
-from ._runpod_utils import send_request
+from ._runpod_utils import send_request, cancel_job
 
 
 class WAN22GenerateVideo:
@@ -56,6 +56,16 @@ class WAN22GenerateVideo:
     RETURN_NAMES = ("frames", "metadata")
     FUNCTION = "generate"
     CATEGORY = "ComfyBros/Video Generation"
+    
+    def __init__(self):
+        self._current_job_id = None
+    
+    def cancel(self):
+        """Cancel the current RunPod job if running"""
+        if self._current_job_id:
+            print(f"Cancelling RunPod job {self._current_job_id}")
+            cancel_job(self._current_job_id)
+            self._current_job_id = None
     
     def tensor_to_base64(self, tensor: torch.Tensor) -> str:
         """Convert torch tensor to base64 string"""
@@ -457,7 +467,11 @@ class WAN22GenerateVideo:
         
         try:
             # Poll the endpoint again to check status
-            result = send_request(endpoint, headers, payload)
+            def set_job_id(job_id):
+                self._current_job_id = job_id
+            
+            result = send_request(endpoint, headers, payload, job_callback=set_job_id)
+            self._current_job_id = None  # Clear after completion
             
             # Parse the response to extract frame data (new R2 ZIP archive schema)
             if ("output" in result and 
@@ -510,4 +524,6 @@ class WAN22GenerateVideo:
                     return (frame_tensors, json.dumps(metadata, indent=2))
 
         except Exception as e:
+            # Clear job ID on any error
+            self._current_job_id = None
             raise RuntimeError(f"Unexpected error: {str(e)}")

@@ -12,6 +12,7 @@ from .text_storage import *
 from .json_nodes import *
 from .math_nodes import *
 from .image_batch_utils import *
+from .media_upload import *
 
 NODE_CLASS_MAPPINGS = {
     "ComfyBros_OllamaConnection": OllamaConnection,
@@ -37,6 +38,7 @@ NODE_CLASS_MAPPINGS = {
     "ComfyBros_ImageBatchCombiner": ImageBatchCombiner,
     "ComfyBros_ImageBatchToGIF": ImageBatchToGIF,
     "ComfyBros_ImageBatchSplitter": ImageBatchSplitter,
+    "ComfyBros_MediaUpload": MediaUpload,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -63,4 +65,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComfyBros_ImageBatchCombiner": "Image Batch Combiner",
     "ComfyBros_ImageBatchToGIF": "Image Batch to GIF",
     "ComfyBros_ImageBatchSplitter": "Image Batch Splitter",
+    "ComfyBros_MediaUpload": "Upload to Gallerina",
 }
