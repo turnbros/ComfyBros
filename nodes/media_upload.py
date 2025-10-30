@@ -5,6 +5,7 @@ import io
 import os
 import json
 import numpy as np
+import threading
 from PIL import Image
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional, Union
@@ -59,18 +60,64 @@ class MediaUpload:
         """
 
         # Run async upload in sync context
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(
-                self._upload_async(
-                    media, media_metadata, api_endpoint, filename,
-                    tags, additional_metadata, verify_ssl
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is already running, we need to use a different approach
+                import concurrent.futures
+                import threading
+                
+                # Create a new thread with its own event loop
+                result_container = {}
+                exception_container = {}
+                
+                def run_upload():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        result = new_loop.run_until_complete(
+                            self._upload_async(
+                                media, media_metadata, api_endpoint, filename,
+                                tags, additional_metadata, verify_ssl
+                            )
+                        )
+                        result_container['result'] = result
+                    except Exception as e:
+                        exception_container['exception'] = e
+                    finally:
+                        new_loop.close()
+                
+                # Run in separate thread
+                thread = threading.Thread(target=run_upload)
+                thread.start()
+                thread.join()
+                
+                if 'exception' in exception_container:
+                    raise exception_container['exception']
+                
+                return result_container['result']
+            else:
+                # No loop running, we can use run_until_complete
+                return loop.run_until_complete(
+                    self._upload_async(
+                        media, media_metadata, api_endpoint, filename,
+                        tags, additional_metadata, verify_ssl
+                    )
                 )
-            )
-            return result
-        finally:
-            loop.close()
+        except RuntimeError:
+            # No event loop, create one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(
+                    self._upload_async(
+                        media, media_metadata, api_endpoint, filename,
+                        tags, additional_metadata, verify_ssl
+                    )
+                )
+            finally:
+                loop.close()
 
     async def _upload_async(self, media, media_metadata, api_endpoint,
                            filename, tags, additional_metadata, verify_ssl):
