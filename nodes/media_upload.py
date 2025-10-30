@@ -32,6 +32,9 @@ class MediaUpload:
                 }),
             },
             "optional": {
+                "media_type": (["auto", "image", "video"], {
+                    "default": "auto"
+                }),
                 "user_id": ("STRING", {
                     "default": "",
                     "placeholder": "user123"
@@ -56,7 +59,7 @@ class MediaUpload:
     OUTPUT_NODE = True
 
     def upload(self, media, media_metadata: str, api_endpoint: str,
-               user_id: str = "", filename: str = "", tags: str = "", 
+               media_type: str = "auto", user_id: str = "", filename: str = "", tags: str = "", 
                additional_metadata: str = "{}", verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
         """
         Upload media to Gallerina media gallery API
@@ -84,7 +87,7 @@ class MediaUpload:
                     try:
                         result = new_loop.run_until_complete(
                             self._upload_async(
-                                media, media_metadata, api_endpoint, user_id,
+                                media, media_metadata, api_endpoint, media_type, user_id,
                                 filename, tags, additional_metadata, verify_ssl
                             )
                         )
@@ -107,7 +110,7 @@ class MediaUpload:
                 # No loop running, we can use run_until_complete
                 return loop.run_until_complete(
                     self._upload_async(
-                        media, media_metadata, api_endpoint, user_id,
+                        media, media_metadata, api_endpoint, media_type, user_id,
                         filename, tags, additional_metadata, verify_ssl
                     )
                 )
@@ -118,7 +121,7 @@ class MediaUpload:
             try:
                 return loop.run_until_complete(
                     self._upload_async(
-                        media, media_metadata, api_endpoint, user_id,
+                        media, media_metadata, api_endpoint, media_type, user_id,
                         filename, tags, additional_metadata, verify_ssl
                     )
                 )
@@ -126,7 +129,7 @@ class MediaUpload:
                 loop.close()
 
     async def _upload_async(self, media, media_metadata, api_endpoint,
-                           user_id, filename, tags, additional_metadata, verify_ssl):
+                           media_type, user_id, filename, tags, additional_metadata, verify_ssl):
         """Async upload implementation"""
 
         try:
@@ -137,10 +140,10 @@ class MediaUpload:
             # Parse media metadata
             parsed_metadata = self._parse_media_metadata(media_metadata)
             
-            # Detect media type and convert to bytes
-            media_type = self._detect_media_type(media)
+            # Determine actual media type using explicit parameter or auto-detection
+            actual_media_type = self._determine_media_type(media, media_type, parsed_metadata)
 
-            if media_type == "image":
+            if actual_media_type == "image":
                 file_bytes = self._tensor_to_image_bytes(media)
                 if not filename:
                     # Use batch info if available
@@ -150,7 +153,7 @@ class MediaUpload:
                     else:
                         filename = f"comfyui_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                 
-            else:  # video
+            elif actual_media_type == "video_file":
                 if not isinstance(media, str) or not os.path.exists(media):
                     raise ValueError("Video input must be a valid file path")
                 
@@ -168,8 +171,18 @@ class MediaUpload:
                     else:
                         filename = f"comfyui_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext or '.mp4'}"
             
+            elif actual_media_type == "video_frames":
+                # Convert IMAGE tensor frames to video file
+                if not isinstance(media, torch.Tensor):
+                    raise ValueError("Video frames input must be an IMAGE tensor")
+                
+                file_bytes, filename = await self._frames_to_video_bytes(media, parsed_metadata, filename)
+            
+            else:
+                raise ValueError(f"Unsupported media type: {actual_media_type}")
+            
             # Detect content type using the new helper method
-            content_type = self._detect_content_type(filename, media_type)
+            content_type = self._detect_content_type(filename, actual_media_type.replace("_file", "").replace("_frames", ""))
 
             # Parse tags
             tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
@@ -212,6 +225,21 @@ class MediaUpload:
             })
             return (media, error_status, -1, "")
 
+    def _determine_media_type(self, media, media_type: str, parsed_metadata: dict) -> str:
+        """Determine the actual media type based on user selection and auto-detection"""
+        if media_type == "image":
+            return "image"
+        elif media_type == "video":
+            # User specified video, but need to determine if it's frames or file
+            if isinstance(media, torch.Tensor):
+                return "video_frames"
+            elif isinstance(media, str):
+                return "video_file"
+            else:
+                raise ValueError("Video type specified but media is neither tensor nor file path")
+        else:  # media_type == "auto"
+            return self._detect_media_type(media)
+
     def _detect_media_type(self, media) -> str:
         """Detect if input is IMAGE or VIDEO"""
         if isinstance(media, torch.Tensor):
@@ -223,10 +251,10 @@ class MediaUpload:
                 video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ogv'}
                 
                 if extension in video_extensions:
-                    return "video"
+                    return "video_file"
                 else:
                     print(f"Warning: File '{media}' has extension '{extension}' which may not be a supported video format")
-                    return "video"  # Still try to process as video
+                    return "video_file"  # Still try to process as video
             else:
                 raise ValueError(f"Video file path does not exist: {media}")
         else:
@@ -294,6 +322,98 @@ class MediaUpload:
             if extension and extension not in video_types:
                 print(f"Warning: Unknown video extension '{extension}', defaulting to video/mp4")
             return content_type
+
+    async def _frames_to_video_bytes(self, frames_tensor: torch.Tensor, parsed_metadata: dict, filename: str) -> Tuple[bytes, str]:
+        """Convert IMAGE tensor frames to video file bytes"""
+        import tempfile
+        import subprocess
+        
+        try:
+            # Get video parameters from metadata
+            fps = parsed_metadata.get('video_info', {}).get('fps', 24)
+            frame_count = parsed_metadata.get('frame_count', frames_tensor.shape[0])
+            
+            # Generate filename if not provided
+            if not filename:
+                filename = f"comfyui_video_{frame_count}frames_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+            
+            # Create temporary directory for frames
+            temp_dir = tempfile.mkdtemp(prefix='video_frames_')
+            
+            try:
+                # Save each frame as PNG
+                frame_paths = []
+                for i in range(frames_tensor.shape[0]):
+                    frame = frames_tensor[i]
+                    
+                    # Convert frame tensor to PIL image
+                    if frame.max() <= 1.0:
+                        frame_np = (frame.cpu().numpy() * 255).astype(np.uint8)
+                    else:
+                        frame_np = frame.cpu().numpy().astype(np.uint8)
+                    
+                    from PIL import Image
+                    pil_image = Image.fromarray(frame_np)
+                    
+                    # Save frame
+                    frame_path = os.path.join(temp_dir, f"frame_{i:06d}.png")
+                    pil_image.save(frame_path, 'PNG')
+                    frame_paths.append(frame_path)
+                
+                # Create temporary video file
+                temp_video = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+                temp_video.close()
+                
+                # Use ffmpeg to create video
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',  # Overwrite output
+                    '-framerate', str(fps),
+                    '-i', os.path.join(temp_dir, 'frame_%06d.png'),
+                    '-c:v', 'libx264',
+                    '-pix_fmt', 'yuv420p',
+                    '-crf', '23',  # Good quality
+                    temp_video.name
+                ]
+                
+                result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    raise RuntimeError(f"FFmpeg failed: {result.stderr}")
+                
+                # Read video file to bytes
+                with open(temp_video.name, 'rb') as f:
+                    video_bytes = f.read()
+                
+                # Clean up temporary files
+                for frame_path in frame_paths:
+                    try:
+                        os.remove(frame_path)
+                    except:
+                        pass
+                
+                try:
+                    os.rmdir(temp_dir)
+                    os.remove(temp_video.name)
+                except:
+                    pass
+                
+                return video_bytes, filename
+                
+            except Exception as e:
+                # Clean up on error
+                for frame_path in frame_paths:
+                    try:
+                        os.remove(frame_path)
+                    except:
+                        pass
+                try:
+                    os.rmdir(temp_dir)
+                except:
+                    pass
+                raise
+                
+        except Exception as e:
+            raise RuntimeError(f"Error converting frames to video: {str(e)}")
 
     def _parse_media_metadata(self, media_metadata: str) -> dict:
         """Parse media metadata JSON from generation nodes"""
