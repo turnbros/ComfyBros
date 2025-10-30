@@ -6,6 +6,7 @@ import os
 import json
 import numpy as np
 import threading
+import mimetypes
 from PIL import Image
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional, Union
@@ -148,18 +149,27 @@ class MediaUpload:
                         filename = f"comfyui_batch_{batch_size}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                     else:
                         filename = f"comfyui_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                content_type = "image/png"
+                
             else:  # video
+                if not isinstance(media, str) or not os.path.exists(media):
+                    raise ValueError("Video input must be a valid file path")
+                
                 with open(media, 'rb') as f:
                     file_bytes = f.read()
+                
                 if not filename:
                     # Use frame count info if available
                     frame_count = parsed_metadata.get('frame_count', 0)
+                    original_filename = os.path.basename(media)
+                    base_name, ext = os.path.splitext(original_filename)
+                    
                     if frame_count > 0:
-                        filename = f"comfyui_video_{frame_count}frames_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+                        filename = f"comfyui_video_{frame_count}frames_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext or '.mp4'}"
                     else:
-                        filename = os.path.basename(media) if isinstance(media, str) else f"comfyui_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
-                content_type = "video/mp4"
+                        filename = f"comfyui_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext or '.mp4'}"
+            
+            # Detect content type using the new helper method
+            content_type = self._detect_content_type(filename, media_type)
 
             # Parse tags
             tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
@@ -206,8 +216,19 @@ class MediaUpload:
         """Detect if input is IMAGE or VIDEO"""
         if isinstance(media, torch.Tensor):
             return "image"
-        elif isinstance(media, str) and os.path.exists(media):
-            return "video"
+        elif isinstance(media, str):
+            if os.path.exists(media):
+                # Additional validation for video files
+                extension = media.lower().split('.')[-1] if '.' in media else ''
+                video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ogv'}
+                
+                if extension in video_extensions:
+                    return "video"
+                else:
+                    print(f"Warning: File '{media}' has extension '{extension}' which may not be a supported video format")
+                    return "video"  # Still try to process as video
+            else:
+                raise ValueError(f"Video file path does not exist: {media}")
         else:
             raise ValueError("Invalid media input. Must be IMAGE tensor or valid video file path.")
 
@@ -225,6 +246,54 @@ class MediaUpload:
         img_byte_arr = io.BytesIO()
         pil_image.save(img_byte_arr, format='PNG', optimize=True)
         return img_byte_arr.getvalue()
+
+    def _detect_content_type(self, filename: str, media_type: str) -> str:
+        """Detect proper content type for the file"""
+        # First try to guess from filename using mimetypes
+        mime_type, _ = mimetypes.guess_type(filename)
+        
+        if mime_type:
+            print(f"Detected MIME type: {mime_type} for file: {filename}")
+            return mime_type
+        
+        # Fallback based on file extension and media type
+        extension = filename.lower().split('.')[-1] if '.' in filename else ''
+        
+        if media_type == "image":
+            # Image format fallbacks
+            image_types = {
+                'png': 'image/png',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'gif': 'image/gif',
+                'webp': 'image/webp',
+                'bmp': 'image/bmp',
+                'tiff': 'image/tiff',
+                'tif': 'image/tiff'
+            }
+            content_type = image_types.get(extension, 'image/png')  # Default to PNG for images
+            if extension and extension not in image_types:
+                print(f"Warning: Unknown image extension '{extension}', defaulting to image/png")
+            return content_type
+        
+        else:  # video
+            # Video format fallbacks
+            video_types = {
+                'mp4': 'video/mp4',
+                'avi': 'video/x-msvideo',
+                'mov': 'video/quicktime',
+                'mkv': 'video/x-matroska',
+                'webm': 'video/webm',
+                'flv': 'video/x-flv',
+                'wmv': 'video/x-ms-wmv',
+                'm4v': 'video/x-m4v',
+                '3gp': 'video/3gpp',
+                'ogv': 'video/ogg'
+            }
+            content_type = video_types.get(extension, 'video/mp4')  # Default to MP4 for videos
+            if extension and extension not in video_types:
+                print(f"Warning: Unknown video extension '{extension}', defaulting to video/mp4")
+            return content_type
 
     def _parse_media_metadata(self, media_metadata: str) -> dict:
         """Parse media metadata JSON from generation nodes"""
