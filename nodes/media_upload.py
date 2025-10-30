@@ -527,11 +527,11 @@ class MediaUpload:
         
         # Add metadata as JSON field if provided
         if metadata:
-            data.add_field('metadata', json.dumps(metadata), content_type='application/json')
+            data.add_field('metadata', json.dumps(metadata))
             
-        # Add tags as comma-separated string if provided
+        # Add tags as JSON array if provided
         if tags:
-            data.add_field('tags', ','.join(tags))
+            data.add_field('tags', json.dumps(tags))
 
         ssl_context = None if verify_ssl else False
 
