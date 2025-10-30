@@ -82,7 +82,8 @@ class OllamaConverse:
                   "goekdenizguelmez/JOSIEFIED-Qwen3:30b",
                   "llama2-uncensored:latest",
                   "goonsai/qwen2.5-3B-goonsai-nsfw-100k:latest",
-                  "benevolentjoker/nsfwvanessa:latest"
+                  "benevolentjoker/nsfwvanessa:latest",
+                  "hf.co/brittlewis12/gemma-3-27b-it-GGUF:Q4_K_M"
               ], {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 204800}),
