@@ -30,6 +30,10 @@ class MediaUpload:
                 }),
             },
             "optional": {
+                "user_id": ("STRING", {
+                    "default": "",
+                    "placeholder": "user123"
+                }),
                 "filename": ("STRING", {"default": ""}),
                 "tags": ("STRING", {
                     "default": "",
@@ -50,8 +54,8 @@ class MediaUpload:
     OUTPUT_NODE = True
 
     def upload(self, media, media_metadata: str, api_endpoint: str,
-               filename: str = "", tags: str = "", additional_metadata: str = "{}",
-               verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
+               user_id: str = "", filename: str = "", tags: str = "", 
+               additional_metadata: str = "{}", verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
         """
         Upload media to Gallerina media gallery API
 
@@ -78,8 +82,8 @@ class MediaUpload:
                     try:
                         result = new_loop.run_until_complete(
                             self._upload_async(
-                                media, media_metadata, api_endpoint, filename,
-                                tags, additional_metadata, verify_ssl
+                                media, media_metadata, api_endpoint, user_id,
+                                filename, tags, additional_metadata, verify_ssl
                             )
                         )
                         result_container['result'] = result
@@ -101,8 +105,8 @@ class MediaUpload:
                 # No loop running, we can use run_until_complete
                 return loop.run_until_complete(
                     self._upload_async(
-                        media, media_metadata, api_endpoint, filename,
-                        tags, additional_metadata, verify_ssl
+                        media, media_metadata, api_endpoint, user_id,
+                        filename, tags, additional_metadata, verify_ssl
                     )
                 )
         except RuntimeError:
@@ -112,15 +116,15 @@ class MediaUpload:
             try:
                 return loop.run_until_complete(
                     self._upload_async(
-                        media, media_metadata, api_endpoint, filename,
-                        tags, additional_metadata, verify_ssl
+                        media, media_metadata, api_endpoint, user_id,
+                        filename, tags, additional_metadata, verify_ssl
                     )
                 )
             finally:
                 loop.close()
 
     async def _upload_async(self, media, media_metadata, api_endpoint,
-                           filename, tags, additional_metadata, verify_ssl):
+                           user_id, filename, tags, additional_metadata, verify_ssl):
         """Async upload implementation"""
 
         try:
@@ -178,7 +182,7 @@ class MediaUpload:
             # Upload
             result = await self._upload_to_api(
                 file_bytes, filename, content_type, api_endpoint,
-                tag_list, complete_metadata, verify_ssl
+                user_id, tag_list, complete_metadata, verify_ssl
             )
 
             upload_status = json.dumps({
@@ -316,7 +320,7 @@ class MediaUpload:
         return metadata
 
     async def _upload_to_api(self, file_bytes: bytes, filename: str, content_type: str,
-                             api_endpoint: str, tags: list, metadata: dict, verify_ssl: bool) -> dict:
+                             api_endpoint: str, user_id: str, tags: list, metadata: dict, verify_ssl: bool) -> dict:
         """Upload file to Gallerina API without authentication"""
         
         # Clean endpoint URL
@@ -326,6 +330,10 @@ class MediaUpload:
         # Create form data
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=filename, content_type=content_type)
+        
+        # Add user_id if provided
+        if user_id and user_id.strip():
+            data.add_field('user_id', user_id.strip())
         
         # Add metadata as JSON field if provided
         if metadata:
