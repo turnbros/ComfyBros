@@ -75,19 +75,14 @@ class OllamaConverse:
         names = cls.get_instance_names()
         return {
             "required": {
-                "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
+                "instance_name": (names, {"default": names[2] if names else "No instances configured"}),
                 "model": ([
-                  "redule26/huihui_ai_qwen2.5-vl-7b-abliterated:latest",
                   "mdq100/Gemma3-Instruct-Abliterated:27b",
-                  "goekdenizguelmez/JOSIEFIED-Qwen3:30b",
-                  "llama2-uncensored:latest",
-                  "goonsai/qwen2.5-3B-goonsai-nsfw-100k:latest",
-                  "benevolentjoker/nsfwvanessa:latest",
-                  "hf.co/brittlewis12/gemma-3-27b-it-GGUF:Q4_K_M"
+                  "goekdenizguelmez/JOSIEFIED-Qwen3:30b"
               ], {"default": "mdq100/Gemma3-Instruct-Abliterated:27b"}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "max_tokens": ("INT", {"default": 512, "min": 1, "max": 204800}),
-                "temperature": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
+                "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
             },
             "optional": {
@@ -133,23 +128,19 @@ class OllamaConverse:
                          read_timeout: int = 240) -> Tuple[str, dict, dict]:
         
         # Get instance configuration
-        try:
-            instance_config = self.get_instance_config(instance_name)
-            base_endpoint = instance_config["endpoint"]
-            headers = instance_config["headers"]
-            
-            # Construct the chat completions endpoint
-            # If it's a RunPod endpoint, wrap the chat completions call
-            if "runpod.ai" in base_endpoint:
-                endpoint_url = base_endpoint
-                use_runpod_wrapper = True
-            else:
-                # Direct OpenAI-compatible endpoint
-                endpoint_url = f"{base_endpoint.rstrip('/')}/v1/chat/completions"
-                use_runpod_wrapper = False
-                
-        except Exception as e:
-            return (f"Error: {str(e)}", {}, {})
+        instance_config = self.get_instance_config(instance_name)
+        base_endpoint = instance_config["endpoint"]
+        headers = instance_config["headers"]
+        
+        # Construct the chat completions endpoint
+        # If it's a RunPod endpoint, wrap the chat completions call
+        if "runpod.ai" in base_endpoint:
+            endpoint_url = base_endpoint
+            use_runpod_wrapper = True
+        else:
+            # Direct OpenAI-compatible endpoint
+            endpoint_url = f"{base_endpoint.rstrip('/')}/v1/chat/completions"
+            use_runpod_wrapper = False
         
         # Build messages array for chat completions
         messages = []
@@ -177,16 +168,13 @@ class OllamaConverse:
         
         # Add image if provided
         if image is not None:
-            try:
-                image_b64 = self.tensor_to_base64(image)
-                user_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{image_b64}"
-                    }
-                })
-            except Exception as e:
-                return (f"Error processing image: {str(e)}", {}, {})
+            image_b64 = self.tensor_to_base64(image)
+            user_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{image_b64}"
+                }
+            })
         
         messages.append({
             "role": "user",
@@ -267,14 +255,8 @@ class OllamaConverse:
                 
                 return (assistant_response, updated_context, output_meta)
             
-            # Final fallback: return the full response as JSON string
-            fallback_response = json.dumps(result, indent=2)
-            updated_context = {
-                "messages": messages,
-                "last_response": fallback_response,
-                "instance_name": instance_name
-            }
-            return (fallback_response, updated_context, output_meta)
+            # If no valid response was extracted, this is an error condition
+            raise RuntimeError(f"Failed to extract valid response from API. Raw response: {json.dumps(result, indent=2)}")
             
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Request error: {str(e)}")
