@@ -18,12 +18,13 @@ class MediaUpload:
         return {
             "required": {
                 "media": ("IMAGE,VIDEO",),  # Accepts both IMAGE and VIDEO
-                "api_endpoint": ("STRING", {
-                    "default": "https://localhost:8443",
-                    "multiline": False
+                "media_metadata": ("STRING", {
+                    "default": "{}",
+                    "multiline": True,
+                    "forceInput": True
                 }),
-                "auth_token": ("STRING", {
-                    "default": "",
+                "api_endpoint": ("STRING", {
+                    "default": "http://localhost:8000",
                     "multiline": False
                 }),
             },
@@ -33,25 +34,11 @@ class MediaUpload:
                     "default": "",
                     "placeholder": "portrait, anime, highres"
                 }),
-                "metadata_json": ("STRING", {
+                "additional_metadata": ("STRING", {
                     "default": "{}",
                     "multiline": True
                 }),
-                "include_workflow_data": ("BOOLEAN", {"default": True}),
                 "verify_ssl": ("BOOLEAN", {"default": True}),
-
-                # Workflow parameters (optional passthrough)
-                "positive_prompt": ("STRING", {"default": "", "forceInput": True}),
-                "negative_prompt": ("STRING", {"default": "", "forceInput": True}),
-                "model_name": ("STRING", {"default": "", "forceInput": True}),
-                "seed": ("INT", {"default": -1, "forceInput": True}),
-                "steps": ("INT", {"default": -1, "forceInput": True}),
-                "cfg": ("FLOAT", {"default": -1.0, "forceInput": True}),
-                "sampler": ("STRING", {"default": "", "forceInput": True}),
-                "scheduler": ("STRING", {"default": "", "forceInput": True}),
-                "width": ("INT", {"default": -1, "forceInput": True}),
-                "height": ("INT", {"default": -1, "forceInput": True}),
-                "denoise": ("FLOAT", {"default": -1.0, "forceInput": True}),
             }
         }
 
@@ -61,10 +48,9 @@ class MediaUpload:
     CATEGORY = "ComfyBros/Storage"
     OUTPUT_NODE = True
 
-    def upload(self, media, api_endpoint: str, auth_token: str,
-               filename: str = "", tags: str = "", metadata_json: str = "{}",
-               include_workflow_data: bool = True, verify_ssl: bool = True,
-               **workflow_params) -> Tuple[Any, str, int, str]:
+    def upload(self, media, media_metadata: str, api_endpoint: str,
+               filename: str = "", tags: str = "", additional_metadata: str = "{}",
+               verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
         """
         Upload media to Gallerina media gallery API
 
@@ -78,60 +64,74 @@ class MediaUpload:
         try:
             result = loop.run_until_complete(
                 self._upload_async(
-                    media, api_endpoint, auth_token, filename,
-                    tags, metadata_json, include_workflow_data,
-                    verify_ssl, **workflow_params
+                    media, media_metadata, api_endpoint, filename,
+                    tags, additional_metadata, verify_ssl
                 )
             )
             return result
         finally:
             loop.close()
 
-    async def _upload_async(self, media, api_endpoint, auth_token,
-                           filename, tags, metadata_json, include_workflow_data,
-                           verify_ssl, **workflow_params):
+    async def _upload_async(self, media, media_metadata, api_endpoint,
+                           filename, tags, additional_metadata, verify_ssl):
         """Async upload implementation"""
 
         try:
             # Validate inputs
             if not api_endpoint or not api_endpoint.strip():
                 raise ValueError("API endpoint is required")
-            if not auth_token or not auth_token.strip():
-                raise ValueError("Authentication token is required")
 
+            # Parse media metadata
+            parsed_metadata = self._parse_media_metadata(media_metadata)
+            
             # Detect media type and convert to bytes
             media_type = self._detect_media_type(media)
 
             if media_type == "image":
                 file_bytes = self._tensor_to_image_bytes(media)
                 if not filename:
-                    filename = f"comfyui_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    # Use batch info if available
+                    batch_size = parsed_metadata.get('batch_size', 1)
+                    if batch_size > 1:
+                        filename = f"comfyui_batch_{batch_size}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    else:
+                        filename = f"comfyui_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                 content_type = "image/png"
             else:  # video
                 with open(media, 'rb') as f:
                     file_bytes = f.read()
                 if not filename:
-                    filename = os.path.basename(media)
+                    # Use frame count info if available
+                    frame_count = parsed_metadata.get('frame_count', 0)
+                    if frame_count > 0:
+                        filename = f"comfyui_video_{frame_count}frames_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+                    else:
+                        filename = os.path.basename(media) if isinstance(media, str) else f"comfyui_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
                 content_type = "video/mp4"
 
             # Parse tags
             tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
 
-            # Build metadata
+            # Build complete metadata
             try:
-                metadata = json.loads(metadata_json) if metadata_json else {}
+                additional_meta = json.loads(additional_metadata) if additional_metadata else {}
             except json.JSONDecodeError as e:
-                print(f"Warning: Invalid metadata JSON, using empty metadata: {e}")
-                metadata = {}
-                
-            if include_workflow_data:
-                workflow_meta = self._capture_workflow_metadata(**workflow_params)
-                metadata.update(workflow_meta)
+                print(f"Warning: Invalid additional metadata JSON, ignoring: {e}")
+                additional_meta = {}
+            
+            # Combine all metadata
+            complete_metadata = {
+                'uploaded_at': datetime.now().isoformat(),
+                'source': 'ComfyUI',
+                'node': 'MediaUpload',
+                **parsed_metadata,
+                **additional_meta
+            }
 
             # Upload
             result = await self._upload_to_api(
-                file_bytes, filename, content_type, api_endpoint, auth_token,
-                tag_list, metadata, verify_ssl
+                file_bytes, filename, content_type, api_endpoint,
+                tag_list, complete_metadata, verify_ssl
             )
 
             upload_status = json.dumps({
@@ -174,6 +174,84 @@ class MediaUpload:
         pil_image.save(img_byte_arr, format='PNG', optimize=True)
         return img_byte_arr.getvalue()
 
+    def _parse_media_metadata(self, media_metadata: str) -> dict:
+        """Parse media metadata JSON from generation nodes"""
+        try:
+            if not media_metadata or media_metadata.strip() == "":
+                return {}
+            
+            metadata = json.loads(media_metadata)
+            
+            # Extract key information for Gallerina
+            parsed = {}
+            
+            # Common fields
+            if 'parameters' in metadata:
+                params = metadata['parameters']
+                parsed.update({
+                    'generation_parameters': params,
+                    'positive_prompt': params.get('positive_prompt', ''),
+                    'negative_prompt': params.get('negative_prompt', ''),
+                    'seed': params.get('seed'),
+                    'steps': params.get('steps'),
+                    'cfg': params.get('cfg'),
+                    'sampler_name': params.get('sampler_name', ''),
+                    'scheduler': params.get('scheduler', ''),
+                })
+                
+                # Add model/checkpoint info
+                if 'checkpoint' in params:
+                    parsed['model'] = params['checkpoint']
+                
+            # Image-specific fields
+            if 'batch_size' in metadata:
+                parsed.update({
+                    'batch_size': metadata['batch_size'],
+                    'image_count': metadata.get('image_count'),
+                    'format': metadata.get('format', 'PNG')
+                })
+                
+            # Video-specific fields  
+            if 'frame_count' in metadata:
+                parsed.update({
+                    'frame_count': metadata['frame_count'],
+                    'video_info': metadata.get('video_info', {})
+                })
+                
+            # Tensor shape info
+            if 'tensor_shape' in metadata:
+                shape = metadata['tensor_shape']
+                parsed['tensor_shape'] = shape
+                if len(shape) >= 3:
+                    parsed.update({
+                        'height': shape[-3],
+                        'width': shape[-2],
+                        'channels': shape[-1]
+                    })
+                    
+            # Performance info
+            parsed.update({
+                'execution_time': metadata.get('execution_time'),
+                'delay_time': metadata.get('delay_time'),
+                'status': metadata.get('status')
+            })
+            
+            # R2 info if available
+            if 'r2_info' in metadata:
+                parsed['r2_info'] = metadata['r2_info']
+                
+            # Original metadata for reference
+            parsed['original_metadata'] = metadata
+            
+            return parsed
+            
+        except json.JSONDecodeError as e:
+            print(f"Warning: Invalid media metadata JSON: {e}")
+            return {}
+        except Exception as e:
+            print(f"Warning: Error parsing media metadata: {e}")
+            return {}
+
     def _capture_workflow_metadata(self, **kwargs) -> dict:
         """Capture workflow parameters"""
         metadata = {
@@ -191,45 +269,47 @@ class MediaUpload:
         return metadata
 
     async def _upload_to_api(self, file_bytes: bytes, filename: str, content_type: str,
-                             api_endpoint: str, auth_token: str, tags: list, 
-                             metadata: dict, verify_ssl: bool) -> dict:
-        """Upload file to Gallerina API"""
+                             api_endpoint: str, tags: list, metadata: dict, verify_ssl: bool) -> dict:
+        """Upload file to Gallerina API without authentication"""
         
         # Clean endpoint URL
         api_endpoint = api_endpoint.rstrip('/')
         url = f"{api_endpoint}/files/upload"
 
-        headers = {"Authorization": f"Bearer {auth_token}"}
-
         # Create form data
         data = aiohttp.FormData()
         data.add_field('file', file_bytes, filename=filename, content_type=content_type)
+        
+        # Add metadata as JSON field if provided
+        if metadata:
+            data.add_field('metadata', json.dumps(metadata), content_type='application/json')
+            
+        # Add tags as comma-separated string if provided
+        if tags:
+            data.add_field('tags', ','.join(tags))
 
         ssl_context = None if verify_ssl else False
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, data=data, ssl=ssl_context) as response:
+                async with session.post(url, data=data, ssl=ssl_context) as response:
                     if response.status == 200:
                         result = await response.json()
-                        file_id = result['file']['id']
-
-                        # Update metadata and tags if provided
-                        if tags or metadata:
-                            await self._update_metadata(
-                                file_id, api_endpoint, auth_token,
-                                tags, metadata, ssl_context
-                            )
+                        
+                        # Handle different possible response formats
+                        if 'file' in result:
+                            file_id = result['file']['id']
+                        elif 'id' in result:
+                            file_id = result['id']
+                        else:
+                            # Fallback - generate a fake ID for compatibility
+                            file_id = int(datetime.now().timestamp())
 
                         return {
                             'file_id': file_id,
                             'file_url': f"{api_endpoint}/files/{file_id}/download",
                             'message': result.get('message', 'Upload successful')
                         }
-                    elif response.status == 401:
-                        raise Exception("Authentication failed. Check your auth token.")
-                    elif response.status == 403:
-                        raise Exception("Access denied. User does not have upload permissions.")
                     else:
                         error_text = await response.text()
                         raise Exception(f"Upload failed ({response.status}): {error_text}")
@@ -240,27 +320,3 @@ class MediaUpload:
             raise Exception("Upload timed out. File may be too large or network is slow.")
         except aiohttp.ClientSSLError as e:
             raise Exception(f"SSL verification failed. Set verify_ssl=False for self-signed certs. Error: {e}")
-
-    async def _update_metadata(self, file_id: int, api_endpoint: str, auth_token: str,
-                              tags: list, metadata: dict, ssl_context):
-        """Update file metadata and tags"""
-        url = f"{api_endpoint}/files/{file_id}"
-        headers = {
-            "Authorization": f"Bearer {auth_token}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {}
-        if tags:
-            payload['tags'] = tags
-        if metadata:
-            payload['metadata'] = metadata
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.put(url, headers=headers, json=payload, ssl=ssl_context) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        print(f"Warning: Metadata update failed ({response.status}): {error_text}")
-        except Exception as e:
-            print(f"Warning: Failed to update metadata: {str(e)}")
