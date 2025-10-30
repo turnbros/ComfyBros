@@ -9,6 +9,13 @@ import threading
 from PIL import Image
 from datetime import datetime
 from typing import Tuple, Dict, Any, Optional, Union
+import folder_paths
+
+from comfy_api.input import AudioInput, ImageInput, VideoInput
+from comfy_api.input_impl import VideoFromComponents, VideoFromFile
+from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
+from comfy_api.latest import ComfyExtension, io, ui
+from comfy.cli_args import args
 
 
 class MediaUpload:
@@ -375,3 +382,57 @@ class MediaUpload:
             raise Exception("Upload timed out. File may be too large or network is slow.")
         except aiohttp.ClientSSLError as e:
             raise Exception(f"SSL verification failed. Set verify_ssl=False for self-signed certs. Error: {e}")
+
+class SaveVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SaveVideo",
+            display_name="Save Video",
+            category="image/video",
+            description="Saves the input images to your ComfyUI output directory.",
+            inputs=[
+                io.Video.Input("video", tooltip="The video to save."),
+                io.String.Input("filename_prefix", default="video/ComfyUI", tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."),
+                io.Combo.Input("format", options=VideoContainer.as_input(), default="auto", tooltip="The format to save the video as."),
+                io.Combo.Input("codec", options=VideoCodec.as_input(), default="auto", tooltip="The codec to use for the video."),
+            ],
+            outputs=[
+                io.String.Output("path", tooltip="The path to the saved video file.")
+            ],
+            hidden=[io.Hidden.prompt, io.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, video: VideoInput, filename_prefix, format, codec) -> io.NodeOutput:
+        width, height = video.get_dimensions()
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix,
+            folder_paths.get_output_directory(),
+            width,
+            height
+        )
+        saved_metadata = None
+        if not args.disable_metadata:
+            metadata = {}
+            if cls.hidden.extra_pnginfo is not None:
+                metadata.update(cls.hidden.extra_pnginfo)
+            if cls.hidden.prompt is not None:
+                metadata["prompt"] = cls.hidden.prompt
+            if len(metadata) > 0:
+                saved_metadata = metadata
+        file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
+        file_path = os.path.join(full_output_folder, file)
+        video.save_to(
+            file_path,
+            format=format,
+            codec=codec,
+            metadata=saved_metadata
+        )
+
+        return io.NodeOutput(
+            file_path,
+            ui=ui.PreviewVideo([ui.SavedResult(file, subfolder, io.FolderType.output)])
+        )
+
