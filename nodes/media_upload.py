@@ -44,10 +44,6 @@ class MediaUpload:
                     "default": "",
                     "placeholder": "portrait, anime, highres"
                 }),
-                "additional_metadata": ("STRING", {
-                    "default": "{}",
-                    "multiline": True
-                }),
                 "verify_ssl": ("BOOLEAN", {"default": True}),
             }
         }
@@ -60,7 +56,7 @@ class MediaUpload:
 
     def upload(self, media, media_metadata: str, api_endpoint: str,
                media_type: str = "auto", user_id: str = "", filename: str = "", tags: str = "", 
-               additional_metadata: str = "{}", verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
+               verify_ssl: bool = True) -> Tuple[Any, str, int, str]:
         """
         Upload media to Gallerina media gallery API
 
@@ -88,7 +84,7 @@ class MediaUpload:
                         result = new_loop.run_until_complete(
                             self._upload_async(
                                 media, media_metadata, api_endpoint, media_type, user_id,
-                                filename, tags, additional_metadata, verify_ssl
+                                filename, tags, verify_ssl
                             )
                         )
                         result_container['result'] = result
@@ -111,7 +107,7 @@ class MediaUpload:
                 return loop.run_until_complete(
                     self._upload_async(
                         media, media_metadata, api_endpoint, media_type, user_id,
-                        filename, tags, additional_metadata, verify_ssl
+                        filename, tags, verify_ssl
                     )
                 )
         except RuntimeError:
@@ -122,14 +118,14 @@ class MediaUpload:
                 return loop.run_until_complete(
                     self._upload_async(
                         media, media_metadata, api_endpoint, media_type, user_id,
-                        filename, tags, additional_metadata, verify_ssl
+                        filename, tags, verify_ssl
                     )
                 )
             finally:
                 loop.close()
 
     async def _upload_async(self, media, media_metadata, api_endpoint,
-                           media_type, user_id, filename, tags, additional_metadata, verify_ssl):
+                           media_type, user_id, filename, tags, verify_ssl):
         """Async upload implementation"""
 
         try:
@@ -187,21 +183,16 @@ class MediaUpload:
             # Parse tags
             tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
 
-            # Build complete metadata
-            try:
-                additional_meta = json.loads(additional_metadata) if additional_metadata else {}
-            except json.JSONDecodeError as e:
-                print(f"Warning: Invalid additional metadata JSON, ignoring: {e}")
-                additional_meta = {}
-            
-            # Combine all metadata
+            # Build complete metadata - safely merge dictionaries to avoid unpacking non-dict values
             complete_metadata = {
                 'uploaded_at': datetime.now().isoformat(),
                 'source': 'ComfyUI',
                 'node': 'MediaUpload',
-                **parsed_metadata,
-                **additional_meta
             }
+            
+            # Safely merge parsed_metadata
+            if isinstance(parsed_metadata, dict):
+                complete_metadata.update(parsed_metadata)
 
             # Upload
             result = await self._upload_to_api(
