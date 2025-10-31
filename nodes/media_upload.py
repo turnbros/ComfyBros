@@ -49,7 +49,7 @@ class MediaUpload:
         }
 
     RETURN_TYPES = ("IMAGE,VIDEO", "STRING", "INT", "STRING")
-    RETURN_NAMES = ("media", "upload_status", "file_id", "file_url")
+    RETURN_NAMES = ("media", "upload_status", "file_ids", "file_urls")
     FUNCTION = "upload"
     CATEGORY = "ComfyBros/Storage"
     OUTPUT_NODE = True
@@ -141,14 +141,110 @@ class MediaUpload:
 
             if actual_media_type == "image":
                 file_bytes = self._tensor_to_image_bytes(media)
-                if not filename:
-                    # Use batch info if available
-                    batch_size = parsed_metadata.get('batch_size', 1)
-                    if batch_size > 1:
-                        filename = f"comfyui_batch_{batch_size}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                    else:
+                
+                # Handle batch vs single image
+                is_batch = isinstance(file_bytes, list)
+                
+                if is_batch:
+                    # Batch upload - process all images
+                    batch_size = len(file_bytes)
+                    upload_results = []
+                    
+                    for i, single_file_bytes in enumerate(file_bytes):
+                        # Generate filename for each image in batch
+                        if not filename:
+                            single_filename = f"comfyui_batch_{i+1}of{batch_size}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                        else:
+                            # Add batch index to provided filename
+                            name_parts = filename.rsplit('.', 1)
+                            if len(name_parts) == 2:
+                                single_filename = f"{name_parts[0]}_batch_{i+1}of{batch_size}.{name_parts[1]}"
+                            else:
+                                single_filename = f"{filename}_batch_{i+1}of{batch_size}.png"
+                        
+                        # Detect content type
+                        content_type = self._detect_content_type(single_filename, "image")
+                        
+                        # Parse tags
+                        tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
+                        
+                        # Build complete metadata for this image
+                        complete_metadata = {
+                            'uploaded_at': datetime.now().isoformat(),
+                            'source': 'ComfyUI',
+                            'node': 'MediaUpload',
+                            'batch_info': {
+                                'is_batch': True,
+                                'batch_size': batch_size,
+                                'batch_index': i + 1
+                            }
+                        }
+                        
+                        # Safely merge parsed_metadata
+                        if isinstance(parsed_metadata, dict):
+                            complete_metadata.update(parsed_metadata)
+                        
+                        # Upload single image
+                        result = await self._upload_to_api(
+                            single_file_bytes, single_filename, content_type, api_endpoint,
+                            user_id, tag_list, complete_metadata, verify_ssl
+                        )
+                        upload_results.append(result)
+                    
+                    # Combine results
+                    file_ids = [r['file_id'] for r in upload_results]
+                    file_urls = [r['file_url'] for r in upload_results]
+                    
+                    upload_status = json.dumps({
+                        'success': True,
+                        'batch_size': batch_size,
+                        'file_ids': file_ids,
+                        'message': f'Successfully uploaded {batch_size} images'
+                    })
+                    
+                    # For batch uploads, return comma-separated IDs and URLs for compatibility
+                    file_ids_str = ",".join(map(str, file_ids)) if file_ids else "-1"
+                    file_urls_str = ",".join(file_urls) if file_urls else ""
+                    
+                    return (media, upload_status, file_ids[0] if file_ids else -1, file_ids_str + "|" + file_urls_str)
+                
+                else:
+                    # Single image upload
+                    if not filename:
                         filename = f"comfyui_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
                 
+            
+                    # Detect content type using the new helper method
+                    content_type = self._detect_content_type(filename, "image")
+
+                    # Parse tags
+                    tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
+
+                    # Build complete metadata - safely merge dictionaries to avoid unpacking non-dict values
+                    complete_metadata = {
+                        'uploaded_at': datetime.now().isoformat(),
+                        'source': 'ComfyUI',
+                        'node': 'MediaUpload',
+                    }
+                    
+                    # Safely merge parsed_metadata
+                    if isinstance(parsed_metadata, dict):
+                        complete_metadata.update(parsed_metadata)
+
+                    # Upload
+                    result = await self._upload_to_api(
+                        file_bytes, filename, content_type, api_endpoint,
+                        user_id, tag_list, complete_metadata, verify_ssl
+                    )
+
+                    upload_status = json.dumps({
+                        'success': True,
+                        'file_id': result['file_id'],
+                        'message': result['message']
+                    })
+
+                    return (media, upload_status, result['file_id'], result['file_url'])
+            
             elif actual_media_type == "video_file":
                 if not isinstance(media, str) or not os.path.exists(media):
                     raise ValueError("Video input must be a valid file path")
@@ -166,6 +262,37 @@ class MediaUpload:
                         filename = f"comfyui_video_{frame_count}frames_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext or '.mp4'}"
                     else:
                         filename = f"comfyui_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext or '.mp4'}"
+                        
+                # Detect content type using the new helper method
+                content_type = self._detect_content_type(filename, "video")
+
+                # Parse tags
+                tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
+
+                # Build complete metadata - safely merge dictionaries to avoid unpacking non-dict values
+                complete_metadata = {
+                    'uploaded_at': datetime.now().isoformat(),
+                    'source': 'ComfyUI',
+                    'node': 'MediaUpload',
+                }
+                
+                # Safely merge parsed_metadata
+                if isinstance(parsed_metadata, dict):
+                    complete_metadata.update(parsed_metadata)
+
+                # Upload
+                result = await self._upload_to_api(
+                    file_bytes, filename, content_type, api_endpoint,
+                    user_id, tag_list, complete_metadata, verify_ssl
+                )
+
+                upload_status = json.dumps({
+                    'success': True,
+                    'file_id': result['file_id'],
+                    'message': result['message']
+                })
+
+                return (media, upload_status, result['file_id'], result['file_url'])
             
             elif actual_media_type == "video_frames":
                 # Convert IMAGE tensor frames to video file
@@ -173,40 +300,40 @@ class MediaUpload:
                     raise ValueError("Video frames input must be an IMAGE tensor")
                 
                 file_bytes, filename = await self._frames_to_video_bytes(media, parsed_metadata, filename)
+                
+                # Detect content type using the new helper method
+                content_type = self._detect_content_type(filename, "video")
+
+                # Parse tags
+                tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
+
+                # Build complete metadata - safely merge dictionaries to avoid unpacking non-dict values
+                complete_metadata = {
+                    'uploaded_at': datetime.now().isoformat(),
+                    'source': 'ComfyUI',
+                    'node': 'MediaUpload',
+                }
+                
+                # Safely merge parsed_metadata
+                if isinstance(parsed_metadata, dict):
+                    complete_metadata.update(parsed_metadata)
+
+                # Upload
+                result = await self._upload_to_api(
+                    file_bytes, filename, content_type, api_endpoint,
+                    user_id, tag_list, complete_metadata, verify_ssl
+                )
+
+                upload_status = json.dumps({
+                    'success': True,
+                    'file_id': result['file_id'],
+                    'message': result['message']
+                })
+
+                return (media, upload_status, result['file_id'], result['file_url'])
             
             else:
                 raise ValueError(f"Unsupported media type: {actual_media_type}")
-            
-            # Detect content type using the new helper method
-            content_type = self._detect_content_type(filename, actual_media_type.replace("_file", "").replace("_frames", ""))
-
-            # Parse tags
-            tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else []
-
-            # Build complete metadata - safely merge dictionaries to avoid unpacking non-dict values
-            complete_metadata = {
-                'uploaded_at': datetime.now().isoformat(),
-                'source': 'ComfyUI',
-                'node': 'MediaUpload',
-            }
-            
-            # Safely merge parsed_metadata
-            if isinstance(parsed_metadata, dict):
-                complete_metadata.update(parsed_metadata)
-
-            # Upload
-            result = await self._upload_to_api(
-                file_bytes, filename, content_type, api_endpoint,
-                user_id, tag_list, complete_metadata, verify_ssl
-            )
-
-            upload_status = json.dumps({
-                'success': True,
-                'file_id': result['file_id'],
-                'message': result['message']
-            })
-
-            return (media, upload_status, result['file_id'], result['file_url'])
 
         except Exception as e:
             print(f"Upload error: {str(e)}")
@@ -251,20 +378,37 @@ class MediaUpload:
         else:
             raise ValueError("Invalid media input. Must be IMAGE tensor or valid video file path.")
 
-    def _tensor_to_image_bytes(self, image_tensor: torch.Tensor) -> bytes:
-        """Convert ComfyUI image tensor to PNG bytes"""
-        # Handle batch - take first image if batch
+    def _tensor_to_image_bytes(self, image_tensor: torch.Tensor) -> Union[bytes, list]:
+        """Convert ComfyUI image tensor to PNG bytes - handles both single images and batches"""
         if len(image_tensor.shape) == 4:
-            image_tensor = image_tensor[0]
-
-        # Convert from [H, W, C] to numpy array
-        numpy_array = (image_tensor.cpu().numpy() * 255).astype(np.uint8)
-        pil_image = Image.fromarray(numpy_array)
-
-        # Convert to bytes
-        img_byte_arr = io.BytesIO()
-        pil_image.save(img_byte_arr, format='PNG', optimize=True)
-        return img_byte_arr.getvalue()
+            # Handle batch - process all images
+            batch_size = image_tensor.shape[0]
+            if batch_size == 1:
+                # Single image in batch format
+                image_tensor = image_tensor[0]
+                numpy_array = (image_tensor.cpu().numpy() * 255).astype(np.uint8)
+                pil_image = Image.fromarray(numpy_array)
+                img_byte_arr = io.BytesIO()
+                pil_image.save(img_byte_arr, format='PNG', optimize=True)
+                return img_byte_arr.getvalue()
+            else:
+                # Multiple images in batch
+                image_bytes_list = []
+                for i in range(batch_size):
+                    single_image = image_tensor[i]
+                    numpy_array = (single_image.cpu().numpy() * 255).astype(np.uint8)
+                    pil_image = Image.fromarray(numpy_array)
+                    img_byte_arr = io.BytesIO()
+                    pil_image.save(img_byte_arr, format='PNG', optimize=True)
+                    image_bytes_list.append(img_byte_arr.getvalue())
+                return image_bytes_list
+        else:
+            # Single image
+            numpy_array = (image_tensor.cpu().numpy() * 255).astype(np.uint8)
+            pil_image = Image.fromarray(numpy_array)
+            img_byte_arr = io.BytesIO()
+            pil_image.save(img_byte_arr, format='PNG', optimize=True)
+            return img_byte_arr.getvalue()
 
     def _detect_content_type(self, filename: str, media_type: str) -> str:
         """Detect proper content type for the file"""
