@@ -94,10 +94,12 @@ class WAN22GenerateVideo:
 
     def frames_to_tensor_batch(self, frames: List[dict]) -> torch.Tensor:
         """Convert list of base64 frame data to batched tensor for ComfyUI"""
+        import numpy as np
+        
         # Sort frames by frame_number to ensure correct sequence
         sorted_frames = sorted(frames, key=lambda x: x.get('frame_number', 0))
         
-        frame_tensors = []
+        frame_arrays = []
         for frame in sorted_frames:
             frame_data = frame.get('data', '')
             if not frame_data:
@@ -113,21 +115,18 @@ class WAN22GenerateVideo:
             if pil_image.mode != 'RGB':
                 pil_image = pil_image.convert('RGB')
             
-            # Convert PIL to tensor [H, W, C] format
-            width, height = pil_image.size
-            pixel_data = list(pil_image.getdata())
-            
-            # Convert to torch tensor and reshape
-            frame_tensor = torch.tensor(pixel_data, dtype=torch.float32)
-            frame_tensor = frame_tensor.view(height, width, 3) / 255.0  # Normalize to 0-1
-            
-            frame_tensors.append(frame_tensor)
+            # Convert PIL to numpy array directly (much faster)
+            frame_array = np.array(pil_image, dtype=np.float32) / 255.0
+            frame_arrays.append(frame_array)
         
-        if not frame_tensors:
+        if not frame_arrays:
             raise RuntimeError("No valid frames found to create tensor batch")
         
-        # Stack all frames into a batch [B, H, W, C] format
-        batched_tensor = torch.stack(frame_tensors, dim=0)
+        # Stack all frames into a batch [B, H, W, C] format using numpy first
+        batched_array = np.stack(frame_arrays, axis=0)
+        
+        # Convert to torch tensor in one operation
+        batched_tensor = torch.from_numpy(batched_array)
         
         return batched_tensor
 
