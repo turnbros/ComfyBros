@@ -31,10 +31,14 @@ class WAN22GenerateVideo:
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "width": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 16}),
                 "height": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 16}),
-                "length": ("INT", {"default": 80, "min": 8, "max": 800, "step": 8}),
-                "fps": ("INT", {"default": 24, "min": 1, "max": 60}),
-                "steps": ("INT", {"default": 4, "min": 1, "max": 150}),
-                "cfg": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 30.0, "step": 0.1}),
+                "length": ("INT", {"default": 240, "min": 8, "max": 800, "step": 8}),
+                "high_cfg": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 30.0, "step": 0.1}),
+                "high_start_step": ("INT", {"default": 0, "min": 0, "max": 100}),
+                "high_end_step": ("INT", {"default": 2, "min": 0, "max": 100}),
+                "low_cfg": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 30.0, "step": 0.1}),
+                "low_start_step": ("INT", {"default": 2, "min": 0, "max": 100}),
+                "low_end_step": ("INT", {"default": 4, "min": 0, "max": 100}),
+                "total_steps": ("INT", {"default": 4, "min": 1, "max": 150}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
                 "sampler_name": ([
                     "euler", "euler_ancestral", "heun", "heunpp2", "dpm_2", "dpm_2_ancestral",
@@ -45,10 +49,22 @@ class WAN22GenerateVideo:
                 "scheduler": ([
                     "normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"
                 ], {"default": "simple"}),
-                "shift": ("INT", {"default": 0, "min": -100, "max": 100}),
-                "low_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_low.safetensors"}),
-                "high_model_checkpoint": ("STRING", {"default": "wan22_smooth_mix_i2v_high.safetensors"}),
+                "shift_model": ("BOOLEAN", {"default": False}),
+                "shift": ("INT", {"default": 5, "min": -100, "max": 100}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 16}),
                 "upscale": ("BOOLEAN", {"default": False}),
+                "adjust_context": ("BOOLEAN", {"default": False}),
+                "context_length": ("INT", {"default": 81, "min": 1, "max": 1000}),
+                "context_overlap": ("INT", {"default": 8, "min": 0, "max": 100}),
+                "context_schedule": ([
+                    "standard_uniform", "interleaved", "chunked"
+                ], {"default": "standard_uniform"}),
+                "context_stride": ("INT", {"default": 1, "min": 1, "max": 10}),
+                "closed_loop": ("BOOLEAN", {"default": False}),
+                "fuse_method": ([
+                    "pyramid", "concat", "average"
+                ], {"default": "pyramid"}),
+                "dim": ("INT", {"default": 0, "min": 0, "max": 3}),
             }
         }
     
@@ -426,9 +442,14 @@ class WAN22GenerateVideo:
             raise RuntimeError(f"Error extracting frames from ZIP: {str(e)}")
 
     def generate(self, instance_name: str, input_image, positive_prompt: str, 
-                negative_prompt: str, width: int, height: int, length: int, fps: int,
-                steps: int, cfg: float, seed: int, sampler_name: str, 
-                scheduler: str, shift: int, low_model_checkpoint: str, high_model_checkpoint: str, upscale: bool ) -> Tuple[torch.Tensor, str]:
+                negative_prompt: str, width: int, height: int, length: int, 
+                high_cfg: float, high_start_step: int, high_end_step: int,
+                low_cfg: float, low_start_step: int, low_end_step: int,
+                total_steps: int, seed: int, sampler_name: str, 
+                scheduler: str, shift_model: bool, shift: int, batch_size: int,
+                upscale: bool, adjust_context: bool, context_length: int,
+                context_overlap: int, context_schedule: str, context_stride: int,
+                closed_loop: bool, fuse_method: str, dim: int) -> Tuple[torch.Tensor, str]:
 
         # Process the input image
         processed_image = self.process_input_image(input_image, None)
@@ -451,16 +472,28 @@ class WAN22GenerateVideo:
                 "width": width,
                 "height": height,
                 "length": length,
-                "fps": fps,
-                "steps": steps,
-                "cfg": cfg,
+                "high_cfg": high_cfg,
+                "high_start_step": high_start_step,
+                "high_end_step": high_end_step,
+                "low_cfg": low_cfg,
+                "low_start_step": low_start_step,
+                "low_end_step": low_end_step,
+                "total_steps": total_steps,
                 "seed": seed,
                 "sampler_name": sampler_name,
                 "scheduler": scheduler,
+                "shift_model": shift_model,
                 "shift": shift,
-                "low_model_checkpoint": low_model_checkpoint,
-                "high_model_checkpoint": high_model_checkpoint,
+                "batch_size": batch_size,
                 "upscale": upscale,
+                "adjust_context": adjust_context,
+                "context_length": context_length,
+                "context_overlap": context_overlap,
+                "context_schedule": context_schedule,
+                "context_stride": context_stride,
+                "closed_loop": closed_loop,
+                "fuse_method": fuse_method,
+                "dim": dim,
             }
         }
         
@@ -515,8 +548,7 @@ class WAN22GenerateVideo:
                         "video_info": {
                             "width": width,
                             "height": height,
-                            "length": length,
-                            "fps": fps
+                            "length": length
                         }
                     }
                     
