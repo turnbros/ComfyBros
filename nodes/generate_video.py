@@ -27,7 +27,7 @@ class WAN22GenerateVideo:
             "required": {
                 "instance_name": (names, {"default": names[0] if names else "No instances configured"}),
                 "input_image": ("IMAGE",),
-                "positive_prompt": ("STRING", {"multiline": True, "default": "something positive"}),
+                "positive_prompt": ("STRING", {"multiline": True, "default": "A cinematic video of a sunset over a mountain range"}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, low quality, distorted"}),
                 "width": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 16}),
                 "height": ("INT", {"default": 512, "min": 128, "max": 2048, "step": 16}),
@@ -57,12 +57,12 @@ class WAN22GenerateVideo:
                 "context_length": ("INT", {"default": 81, "min": 1, "max": 1000}),
                 "context_overlap": ("INT", {"default": 8, "min": 0, "max": 100}),
                 "context_schedule": ([
-                    "standard_uniform", "interleaved", "chunked"
+                    "looped_uniform", "standard_uniform", "standard_static", "batched"
                 ], {"default": "standard_uniform"}),
                 "context_stride": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "closed_loop": ("BOOLEAN", {"default": False}),
                 "fuse_method": ([
-                    "pyramid", "concat", "average"
+                    "flat", "pyramid", "relative", "overlap-linear"
                 ], {"default": "pyramid"}),
                 "dim": ("INT", {"default": 0, "min": 0, "max": 3}),
             }
